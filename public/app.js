@@ -1,6 +1,7 @@
 // Constants
-const API_CONFIG_URL = '/api/config';
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:streamGenerateContent';
+const API_STATUS_URL = '/api/config-status';
+const API_SAVE_URL = '/api/config';
+const CHAT_API_URL = '/api/chat';
 
 // UI Elements
 const setupContainer = document.getElementById('setup-container');
@@ -29,10 +30,9 @@ const SYSTEM_INSTRUCTION = "Anda adalah BAHASA SMART, asisten edukasi belajar ba
 // Initialize
 async function init() {
     try {
-        const res = await fetch(API_CONFIG_URL);
+        const res = await fetch(API_STATUS_URL);
         const data = await res.json();
-        if (data.key) {
-            apiKey = data.key;
+        if (data.configured) {
             showMainInterface();
         } else {
             showSetup();
@@ -75,12 +75,11 @@ saveKeyBtn.addEventListener('click', async () => {
 
     saveKeyBtn.disabled = true;
     try {
-        await fetch(API_CONFIG_URL, {
+        await fetch(API_SAVE_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ key })
         });
-        apiKey = key;
         showMainInterface();
     } catch (e) {
         alert('Gagal menyimpan key');
@@ -90,37 +89,17 @@ saveKeyBtn.addEventListener('click', async () => {
 });
 
 // Chat Logic
-function appendMessage(sender, text, isStreaming = false) {
-    let div;
-    if (isStreaming) {
-        div = document.getElementById('streaming-msg');
-        if (!div) {
-            div = document.createElement('div');
-            div.id = 'streaming-msg';
-            div.className = 'msg-ai animate-fade-in';
-            chatBox.appendChild(div);
-        }
-        div.innerText = text;
+function appendMessage(sender, text) {
+    let div = document.createElement('div');
+    if (sender === 'AI') {
+        div.className = 'msg-ai animate-fade-in';
+    } else if (sender === 'System') {
+        div.className = 'text-center text-[10px] text-gray-500 my-2 animate-fade-in italic';
     } else {
-        // Remove streaming ID if it exists
-        const streamingDiv = document.getElementById('streaming-msg');
-        if (streamingDiv && sender === 'AI') {
-            streamingDiv.removeAttribute('id');
-            streamingDiv.innerText = text;
-            div = streamingDiv;
-        } else {
-            div = document.createElement('div');
-            if (sender === 'AI') {
-                div.className = 'msg-ai animate-fade-in';
-            } else if (sender === 'System') {
-                div.className = 'text-center text-[10px] text-gray-500 my-2 animate-fade-in italic';
-            } else {
-                div.className = 'msg-user animate-fade-in';
-            }
-            div.innerText = text;
-            chatBox.appendChild(div);
-        }
+        div.className = 'msg-user animate-fade-in';
     }
+    div.innerText = text;
+    chatBox.appendChild(div);
     chatBox.scrollTop = chatBox.scrollHeight;
     return div;
 }
@@ -141,7 +120,7 @@ function removeTypingIndicator() {
 
 async function sendTextMessage() {
     const text = textInput.value.trim();
-    if (!text || !apiKey) return;
+    if (!text) return;
 
     appendMessage('User', text);
     textInput.value = '';
@@ -153,7 +132,7 @@ async function sendTextMessage() {
     chatHistory.push({ role: "user", parts: [{ text: text }] });
 
     try {
-        const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+        const response = await fetch(CHAT_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -164,66 +143,17 @@ async function sendTextMessage() {
             })
         });
 
+        const data = await response.json();
+
         if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.error?.message || 'Gagal menghubungi AI');
+            throw new Error(data.error || 'Gagal menghubungi AI');
         }
 
         removeTypingIndicator();
-        const reader = response.body.getReader();
-        let fullText = "";
-
-        let buffer = "";
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += new TextDecoder().decode(value);
-
-            // Basic parsing for Gemini stream format which is an array of objects
-            // [
-            //   {...},
-            //   {...}
-            // ]
-            // We look for objects between { and }
-
-            let startBracket = buffer.indexOf('{');
-            while (startBracket !== -1) {
-                let endBracket = -1;
-                let bracketCount = 0;
-                for (let i = startBracket; i < buffer.length; i++) {
-                    if (buffer[i] === '{') bracketCount++;
-                    else if (buffer[i] === '}') {
-                        bracketCount--;
-                        if (bracketCount === 0) {
-                            endBracket = i;
-                            break;
-                        }
-                    }
-                }
-
-                if (endBracket !== -1) {
-                    const jsonStr = buffer.substring(startBracket, endBracket + 1);
-                    try {
-                        const json = JSON.parse(jsonStr);
-                        const content = json.candidates?.[0]?.content?.parts?.[0]?.text;
-                        if (content) {
-                            fullText += content;
-                            appendMessage('AI', fullText, true);
-                        }
-                    } catch (e) {
-                        console.error("JSON Parse Error", e);
-                    }
-                    buffer = buffer.substring(endBracket + 1);
-                    startBracket = buffer.indexOf('{');
-                } else {
-                    break;
-                }
-            }
-        }
+        const fullText = data.text;
 
         // Finalize message
-        const finalDiv = appendMessage('AI', fullText);
+        appendMessage('AI', fullText);
         chatHistory.push({ role: "model", parts: [{ text: fullText }] });
         logDebug(`[AI Response] Received ${fullText.length} chars`);
 

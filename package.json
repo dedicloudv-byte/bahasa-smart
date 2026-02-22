@@ -9,6 +9,7 @@
     "build": "wrangler deploy --dry-run"
   },
   "dependencies": {
+    "@google/genai": "^1.42.0",
     "hono": "^4.12.1"
   },
   "devDependencies": {

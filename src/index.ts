@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { serveStatic } from 'hono/cloudflare-workers'
+import { GoogleGenAI } from "@google/genai"
 
 type Bindings = {
   R2: R2Bucket
@@ -8,16 +9,12 @@ type Bindings = {
 const app = new Hono<{ Bindings: Bindings }>()
 
 // API Endpoints for Config
-app.get('/api/config', async (c) => {
+app.get('/api/config-status', async (c) => {
   try {
     const obj = await c.env.R2.get('config/gemini_key.txt')
-    if (!obj) {
-      return c.json({ key: null })
-    }
-    const key = await obj.text()
-    return c.json({ key })
+    return c.json({ configured: !!obj })
   } catch (e) {
-    return c.json({ key: null, error: 'Failed to fetch key' })
+    return c.json({ configured: false })
   }
 })
 
@@ -30,9 +27,34 @@ app.post('/api/config', async (c) => {
   return c.json({ success: true })
 })
 
-// Serving static files explicitly from the public directory
-app.get('/', serveStatic({ path: './public/index.html' }))
-app.get('/style.css', serveStatic({ path: './public/style.css' }))
-app.get('/app.js', serveStatic({ path: './public/app.js' }))
+app.post('/api/chat', async (c) => {
+  const { contents, systemInstruction } = await c.req.json()
+
+  try {
+    const obj = await c.env.R2.get('config/gemini_key.txt')
+    if (!obj) {
+      return c.json({ error: 'API Key not found in R2. Please configure it first.' }, 400)
+    }
+    const apiKey = await obj.text()
+
+    const genAI = new GoogleGenAI(apiKey)
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash-exp",
+      systemInstruction: systemInstruction
+    })
+
+    const result = await model.generateContent({ contents })
+    const response = result.response
+    const text = response.text()
+
+    return c.json({ text: text })
+  } catch (e: any) {
+    console.error('Gemini API Error:', e)
+    return c.json({ error: e.message || 'Failed to generate content' }, 500)
+  }
+})
+
+// Serving static files
+app.use('/*', serveStatic({ root: './' }))
 
 export default app
