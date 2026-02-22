@@ -55,6 +55,20 @@ body {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
+.msg-ai strong {
+    color: #818cf8; /* Light Indigo for bold text */
+    font-weight: 700;
+}
+
+.msg-ai ul, .msg-ai ol {
+    padding-left: 1.25rem;
+    margin: 0.5rem 0;
+}
+
+.msg-ai li {
+    margin-bottom: 0.25rem;
+}
+
 .msg-user {
     align-self: flex-end;
     background: linear-gradient(135deg, #6366f1, #4f46e5);

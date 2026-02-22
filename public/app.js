@@ -24,10 +24,13 @@ const clearChatBtn = document.getElementById('clear-chat-btn');
 let apiKey = null;
 let chatHistory = [];
 const SYSTEM_INSTRUCTION = "Anda adalah BAHASA SMART, asisten edukasi belajar bahasa yang interaktif dan premium. " +
-    "Tugas Anda adalah membantu pengguna belajar bahasa apa pun (Inggris, Jepang, Arab, dll) melalui percakapan teks. " +
-    "Selalu gunakan gaya bahasa yang ramah, profesional, dan sangat mendukung. " +
-    "Secara proaktif berikan koreksi jika ada kesalahan tata bahasa atau pemilihan kata dalam pesan pengguna. " +
-    "Berikan penjelasan singkat tentang koreksi tersebut. Gunakan Markdown jika perlu untuk memperjelas format.";
+    "Tugas Anda adalah membantu pengguna belajar bahasa apa pun melalui percakapan teks. " +
+    "ATURAN FORMATING: " +
+    "1. Gunakan Markdown yang rapi. " +
+    "2. Setiap istilah penting, kosakata baru, atau koreksi HARUS ditulis TEBAL (Contoh: **Bonjour**). " +
+    "3. Gunakan Emoji/Logo di setiap judul atau bagian penting (Contoh: 📘 Kosakata Baru, ✅ Koreksi). " +
+    "4. Gunakan list atau bullet points untuk penjelasan agar terlihat rapi dan mewah. " +
+    "5. Selalu gunakan gaya bahasa yang ramah dan profesional.";
 
 // Initialize
 async function init() {
@@ -115,13 +118,15 @@ cancelSetupBtn.addEventListener('click', () => {
 function appendMessage(sender, text) {
     let div = document.createElement('div');
     if (sender === 'AI') {
-        div.className = 'msg-ai animate-fade-in';
+        div.className = 'msg-ai animate-fade-in prose prose-invert max-w-none';
+        div.innerHTML = marked.parse(text);
     } else if (sender === 'System') {
         div.className = 'text-center text-[10px] text-gray-500 my-2 animate-fade-in italic';
+        div.innerText = text;
     } else {
         div.className = 'msg-user animate-fade-in';
+        div.innerText = text;
     }
-    div.innerText = text;
     chatBox.appendChild(div);
     chatBox.scrollTop = chatBox.scrollHeight;
     return div;
