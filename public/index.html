@@ -51,6 +51,9 @@
                 <h1 class="text-xl font-bold tracking-tight">BAHASA <span class="text-premium-600">SMART</span></h1>
             </div>
             <div class="flex items-center gap-3">
+                <button id="tts-toggle-btn" class="w-9 h-9 flex items-center justify-center rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all text-gray-400 hover:text-white" title="Toggle Auto-Read AI">
+                    <i class="fas fa-volume-up" id="tts-icon"></i>
+                </button>
                 <button id="settings-btn" class="w-9 h-9 flex items-center justify-center rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all text-gray-400 hover:text-white" title="Pengaturan API">
                     <i class="fas fa-cog"></i>
                 </button>
@@ -87,6 +90,40 @@
                 <div class="mt-8 pt-8 border-t border-white/5 flex items-center gap-4 text-xs text-gray-500">
                     <i class="fas fa-shield-halved text-premium-600 text-lg"></i>
                     <p>Key Anda disimpan dengan aman di VPSAI Cloudflare R2 dan tidak akan pernah dibagikan.</p>
+                </div>
+
+                <!-- Client Integration Section -->
+                <div id="client-integration" class="hidden mt-8 pt-8 border-t border-white/5 space-y-5 animate-fade-in">
+                    <div>
+                        <h3 class="text-lg font-bold text-premium-600 mb-1">Integrasi Klien</h3>
+                        <p class="text-[10px] text-gray-500 leading-relaxed uppercase tracking-wider">Berikan akses AI web Anda ke web klien lain melalui endpoint publik.</p>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-[10px] uppercase tracking-widest text-gray-600 font-bold ml-1">Public Endpoint</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="client-endpoint-url" readonly
+                                   class="flex-grow bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-[11px] font-mono text-gray-400 focus:outline-none">
+                            <button onclick="copyToClipboard('client-endpoint-url')" class="w-12 h-12 flex items-center justify-center bg-white/5 rounded-xl hover:bg-white/10 transition-all">
+                                <i class="fas fa-copy text-gray-400"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-[10px] uppercase tracking-widest text-gray-600 font-bold ml-1">X-Client-Key (Header)</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="client-api-key" readonly
+                                   class="flex-grow bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-[11px] font-mono text-premium-600 focus:outline-none">
+                            <button onclick="copyToClipboard('client-api-key')" class="w-12 h-12 flex items-center justify-center bg-white/5 rounded-xl hover:bg-white/10 transition-all">
+                                <i class="fas fa-copy text-gray-400"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button id="rotate-client-key-btn" class="w-full py-3 bg-white/5 hover:bg-red-500/10 text-[10px] text-gray-500 hover:text-red-400 border border-white/5 hover:border-red-500/20 rounded-xl transition-all font-bold uppercase tracking-widest">
+                        Generate / Rotate Client Key
+                    </button>
                 </div>
             </div>
         </div>
@@ -128,7 +165,10 @@
                     </div>
                 </div>
 
-                <div class="glass p-4 rounded-3xl border border-white/10 flex gap-4 bg-black/40 shadow-2xl">
+                <div class="glass p-4 rounded-3xl border border-white/10 flex gap-3 bg-black/40 shadow-2xl items-center">
+                    <button id="voice-btn" class="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all text-gray-400 hover:text-red-500" title="Bicara (Voice Input)">
+                        <i class="fas fa-microphone"></i>
+                    </button>
                     <input type="text" id="text-input" placeholder="Ketik pesan di sini..."
                            class="flex-grow bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:outline-none focus:border-premium-600 transition-all text-sm placeholder:text-gray-500">
                     <button id="send-btn" class="w-14 h-14 rounded-2xl bg-premium-600 flex items-center justify-center hover:bg-premium-700 transition-all shadow-lg shadow-premium-600/30">

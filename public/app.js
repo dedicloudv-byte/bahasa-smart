@@ -14,14 +14,22 @@ const apiKeyInput = document.getElementById('api-key-input');
 const saveKeyBtn = document.getElementById('save-key-btn');
 const settingsBtn = document.getElementById('settings-btn');
 const cancelSetupBtn = document.getElementById('cancel-setup-btn');
+const clientIntegrationSection = document.getElementById('client-integration');
+const clientEndpointUrl = document.getElementById('client-endpoint-url');
+const clientApiKeyInput = document.getElementById('client-api-key');
+const rotateClientKeyBtn = document.getElementById('rotate-client-key-btn');
 const chatBox = document.getElementById('chat-box');
 const debugLogs = document.getElementById('debug-logs');
 const textInput = document.getElementById('text-input');
 const sendBtn = document.getElementById('send-btn');
 const clearChatBtn = document.getElementById('clear-chat-btn');
+const voiceBtn = document.getElementById('voice-btn');
+const ttsToggleBtn = document.getElementById('tts-toggle-btn');
+const ttsIcon = document.getElementById('tts-icon');
 
 // State
 let apiKey = null;
+let ttsEnabled = true;
 let chatHistory = [];
 const SYSTEM_INSTRUCTION = "Anda adalah BAHASA SMART, asisten edukasi belajar bahasa yang interaktif dan premium. " +
     "Tugas Anda adalah membantu pengguna belajar bahasa apa pun melalui percakapan teks. " +
@@ -48,6 +56,17 @@ async function init() {
     }
 }
 
+async function loadClientConfig() {
+    try {
+        const res = await fetch('/api/client-config');
+        const data = await res.json();
+        clientEndpointUrl.value = data.endpoint;
+        clientApiKeyInput.value = data.clientKey || 'Belum di-generate';
+    } catch (e) {
+        logDebug('[Error] Gagal memuat konfigurasi klien');
+    }
+}
+
 function showSetup(isUpdate = false) {
     loadingSpinner.classList.add('hidden');
     setupContainer.classList.remove('hidden');
@@ -55,10 +74,13 @@ function showSetup(isUpdate = false) {
 
     if (isUpdate) {
         cancelSetupBtn.classList.remove('hidden');
+        clientIntegrationSection.classList.remove('hidden');
         document.querySelector('#setup-container h2').innerText = 'Perbarui API Key';
         saveKeyBtn.innerText = 'Simpan Perubahan';
+        loadClientConfig();
     } else {
         cancelSetupBtn.classList.add('hidden');
+        clientIntegrationSection.classList.add('hidden');
         document.querySelector('#setup-container h2').innerText = 'Konfigurasi AI';
         saveKeyBtn.innerText = 'Aktifkan Sekarang';
     }
@@ -114,12 +136,93 @@ cancelSetupBtn.addEventListener('click', () => {
     showMainInterface();
 });
 
+rotateClientKeyBtn.addEventListener('click', async () => {
+    if (!confirm('Apakah Anda yakin ingin mengganti Client Key? Client lama Anda akan segera kehilangan akses.')) return;
+    try {
+        const res = await fetch('/api/client-config/rotate', { method: 'POST' });
+        const data = await res.json();
+        clientApiKeyInput.value = data.clientKey;
+        logDebug('[System] Client API Key rotated');
+    } catch (e) {
+        alert('Gagal memproses rotasi key');
+    }
+});
+
+// Helper for Copy
+window.copyToClipboard = (id) => {
+    const el = document.getElementById(id);
+    el.select();
+    document.execCommand('copy');
+    logDebug(`[System] Copied ${id} to clipboard`);
+};
+
+// TTS and Voice Logic
+function speak(text) {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const cleanText = text.replace(/[*#_`]/g, '');
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = 'id-ID';
+    window.speechSynthesis.speak(utterance);
+}
+
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (SpeechRecognition) {
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.lang = 'id-ID';
+
+    recognition.onstart = () => {
+        voiceBtn.classList.add('text-red-500', 'animate-pulse');
+        logDebug('[System] Listening...');
+    };
+
+    recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        textInput.value = transcript;
+        logDebug(`[Voice] Result: ${transcript}`);
+        sendTextMessage();
+    };
+
+    recognition.onerror = (e) => {
+        voiceBtn.classList.remove('text-red-500', 'animate-pulse');
+        logDebug(`[Error] Voice recognition failed: ${e.error}`);
+    };
+
+    recognition.onend = () => {
+        voiceBtn.classList.remove('text-red-500', 'animate-pulse');
+    };
+
+    voiceBtn.addEventListener('click', () => {
+        try { recognition.start(); } catch (e) { logDebug(`[System] Mic already active`); }
+    });
+} else {
+    voiceBtn.style.display = 'none';
+}
+
+ttsToggleBtn.addEventListener('click', () => {
+    ttsEnabled = !ttsEnabled;
+    ttsIcon.className = ttsEnabled ? 'fas fa-volume-up' : 'fas fa-volume-mute';
+    ttsToggleBtn.className = `w-9 h-9 flex items-center justify-center rounded-xl border transition-all ${ttsEnabled ? 'border-white/10 bg-white/5 text-gray-400' : 'border-red-500/20 bg-red-500/10 text-red-500'}`;
+    logDebug(`[System] Auto-read ${ttsEnabled ? 'enabled' : 'disabled'}`);
+    if (!ttsEnabled) window.speechSynthesis.cancel();
+});
+
 // Chat Logic
 function appendMessage(sender, text) {
     let div = document.createElement('div');
     if (sender === 'AI') {
-        div.className = 'msg-ai animate-fade-in prose prose-invert max-w-none';
+        div.className = 'msg-ai animate-fade-in prose prose-invert max-w-none relative group';
         div.innerHTML = marked.parse(text);
+
+        // Speaker Icon for replay
+        const speaker = document.createElement('button');
+        speaker.className = 'absolute -right-8 top-0 opacity-0 group-hover:opacity-100 transition-opacity p-2 text-gray-500 hover:text-premium-600';
+        speaker.innerHTML = '<i class="fas fa-volume-up text-xs"></i>';
+        speaker.onclick = () => speak(text);
+        div.appendChild(speaker);
+
+        if (ttsEnabled) speak(text);
     } else if (sender === 'System') {
         div.className = 'text-center text-[10px] text-gray-500 my-2 animate-fade-in italic';
         div.innerText = text;
