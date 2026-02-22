@@ -30,3 +30,20 @@ Your worker has access to the following bindings:
 [wrangler:inf] GET /style.css 200 OK (13ms)
 [wrangler:inf] GET /app.js 200 OK (20ms)
 [wrangler:inf] GET /api/config 200 OK (31ms)
+⎔ Reloading local server...
+[wrangler:inf] GET / 200 OK (36ms)
+[wrangler:inf] GET /style.css 200 OK (21ms)
+[wrangler:inf] GET /app.js 200 OK (128ms)
+[wrangler:inf] GET /api/config 200 OK (42ms)
+⎔ Reloading local server...
+⎔ Reloading local server...
+⎔ Reloading local server...
+⎔ Reloading local server...
+[wrangler:inf] GET / 200 OK (11ms)
+[wrangler:inf] GET /style.css 200 OK (8ms)
+[wrangler:inf] GET /app.js 200 OK (8ms)
+[wrangler:inf] GET /api/config 200 OK (16ms)
+[wrangler:inf] GET / 200 OK (5ms)
+[wrangler:inf] GET /style.css 200 OK (8ms)
+[wrangler:inf] GET /app.js 200 OK (10ms)
+[wrangler:inf] GET /api/config 200 OK (8ms)

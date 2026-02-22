@@ -15,10 +15,11 @@ const apiKeyInput = document.getElementById('api-key-input');
 const saveKeyBtn = document.getElementById('save-key-btn');
 const micBtn = document.getElementById('mic-btn');
 const micStatus = document.getElementById('mic-status');
+const aiSpeakingIndicator = document.getElementById('ai-speaking-indicator');
 const chatBox = document.getElementById('chat-box');
 const visualizerBars = document.querySelectorAll('.v-bar');
 
-// State - following the logic pattern from the user snippet
+// State
 let apiKey = null;
 let socket = null;
 const responseQueue = [];
@@ -31,7 +32,7 @@ let isRecording = false;
 let isPlaying = false;
 let currentSource = null;
 
-// Initialize loops and checks
+// Initialize
 async function init() {
     try {
         const res = await fetch(API_CONFIG_URL);
@@ -87,15 +88,16 @@ saveKeyBtn.addEventListener('click', async () => {
     }
 });
 
-// Loops inspired by user snippet
+// Loops
 async function messageLoop() {
     while (true) {
         if (responseQueue.length > 0) {
             const message = responseQueue.shift();
+            console.log('Received message:', message);
 
             if (message.serverContent) {
                 if (message.serverContent.interrupted) {
-                    // Empty audio queue and stop playback on interruption
+                    console.log('Interrupted');
                     audioQueue.length = 0;
                     stopPlayback();
                 }
@@ -103,7 +105,8 @@ async function messageLoop() {
                 if (message.serverContent.modelTurn && message.serverContent.modelTurn.parts) {
                     for (const part of message.serverContent.modelTurn.parts) {
                         if (part.inlineData && part.inlineData.data) {
-                            audioQueue.push(part.inlineData.data); // base64
+                            console.log('Received audio chunk');
+                            audioQueue.push(part.inlineData.data);
                         }
                         if (part.text) {
                             appendMessage('AI', part.text);
@@ -112,7 +115,7 @@ async function messageLoop() {
                 }
             }
         }
-        await new Promise(r => setTimeout(r, 10)); // Yield
+        await new Promise(r => setTimeout(r, 10));
     }
 }
 
@@ -121,20 +124,29 @@ async function playbackLoop() {
         if (audioQueue.length > 0 && !isPlaying) {
             await playNextChunk();
         }
-        await new Promise(r => setTimeout(r, 10)); // Yield
+        await new Promise(r => setTimeout(r, 10));
     }
 }
 
 function stopPlayback() {
     if (currentSource) {
-        currentSource.stop();
+        try { currentSource.stop(); } catch(e) {}
         currentSource = null;
     }
     isPlaying = false;
 }
 
 async function playNextChunk() {
-    if (audioQueue.length === 0) return;
+    if (audioQueue.length === 0) {
+        aiSpeakingIndicator.classList.add('hidden');
+        return;
+    }
+
+    aiSpeakingIndicator.classList.remove('hidden');
+    if (!playbackContext) {
+        playbackContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+    }
+    if (playbackContext.state === 'suspended') await playbackContext.resume();
 
     isPlaying = true;
     const base64Data = audioQueue.shift();
@@ -171,7 +183,7 @@ async function playNextChunk() {
     });
 }
 
-// Session Start
+// Session
 async function startSession() {
     if (!apiKey) return;
 
@@ -190,7 +202,7 @@ async function startSession() {
                     responseModalities: ["audio"]
                 },
                 systemInstruction: {
-                    parts: [{ text: "Anda adalah 'BAHASA SMART', asisten AI elit yang membantu belajar bahasa. Merespon dengan cerdas, ramah, dan berikan bimbingan edukatif." }]
+                    parts: [{ text: "Anda adalah 'BAHASA SMART', asisten AI elit yang membantu belajar bahasa. Berikan respons melalui suara. Jadilah ramah dan edukatif." }]
                 }
             }
         };
@@ -202,6 +214,7 @@ async function startSession() {
         responseQueue.push(response);
 
         if (response.setupComplete) {
+            console.log('Setup Complete');
             startRecording();
         }
     };
@@ -217,14 +230,13 @@ async function startSession() {
     };
 }
 
-// Microphone handling (Browser equivalent of 'mic' library)
 async function startRecording() {
     if (isRecording) return;
 
     try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const source = audioContext.createMediaStreamSource(stream);
-        processor = audioContext.createScriptProcessor(4096, 1, 1);
+        processor = audioContext.createScriptProcessor(2048, 1, 1); // Smaller buffer for lower latency
 
         source.connect(processor);
         processor.connect(audioContext.destination);
@@ -236,12 +248,13 @@ async function startRecording() {
             const pcmData = floatTo16BitPCM(inputData);
             const base64Data = arrayBufferToBase64(pcmData);
 
+            // Fixed: use 'audio' instead of 'mediaChunks'
             socket.send(JSON.stringify({
                 realtimeInput: {
-                    mediaChunks: [{
+                    audio: {
                         mimeType: "audio/pcm;rate=16000",
                         data: base64Data
-                    }]
+                    }
                 }
             }));
             updateVisualizer(inputData);
@@ -252,7 +265,6 @@ async function startRecording() {
         micStatus.innerText = 'Neural Voice Aktif';
     } catch (err) {
         console.error('Mic Error:', err);
-        alert('Mohon izinkan akses mikrofon');
     }
 }
 
@@ -264,7 +276,6 @@ function stopRecording() {
     if (processor) processor.disconnect();
 }
 
-// Helpers
 function floatTo16BitPCM(input) {
     const buffer = new ArrayBuffer(input.length * 2);
     const view = new DataView(buffer);
@@ -299,7 +310,6 @@ function updateVisualizer(data) {
     }
 }
 
-// Event Listeners
 micBtn.addEventListener('click', () => {
     if (!socket || socket.readyState !== WebSocket.OPEN) {
         startSession();
@@ -312,7 +322,6 @@ micBtn.addEventListener('click', () => {
     }
 });
 
-// Start loops
 messageLoop();
 playbackLoop();
 init();
