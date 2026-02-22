@@ -2,7 +2,8 @@
 const API_CONFIG_URL = '/api/config';
 const GEMINI_WS_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
 // Using the model from user snippet
-const MODEL_NAME = 'models/gemini-3-flash-preview';
+let currentModel = 'gemini-3-flash-preview';
+const FALLBACK_MODEL = 'gemini-2.0-flash-exp';
 
 // UI Elements
 const setupContainer = document.getElementById('setup-container');
@@ -207,19 +208,9 @@ async function startSession() {
         updateStatus('Tersambung', 'bg-green-500');
         const setup = {
             setup: {
-                model: MODEL_NAME,
+                model: `models/${currentModel}`,
                 generationConfig: {
-                    responseModalities: ["AUDIO", "TEXT"],
-                    speechConfig: {
-                        voiceConfig: {
-                            prebuiltVoiceConfig: {
-                                voiceName: "Aoide" // High quality neural voice
-                            }
-                        }
-                    }
-                },
-                systemInstruction: {
-                    parts: [{ text: "Anda adalah 'BAHASA SMART', tutor bahasa elit. Bantu pengguna belajar bahasa apa pun. Berikan penjelasan singkat dan padat." }]
+                    responseModalities: ["AUDIO"]
                 }
             }
         };
@@ -250,9 +241,17 @@ async function startSession() {
         console.error('WS Error', e);
     };
 
-    socket.onclose = () => {
+    socket.onclose = (e) => {
         updateStatus('Terputus', 'bg-gray-500');
+        logDebug(`[WS Close] Code: ${e.code}, Reason: ${e.reason || 'None'}`);
         stopRecording();
+
+        // Fallback logic if it fails immediately
+        if (currentModel === 'gemini-3-flash-preview' && e.code === 1006) {
+            logDebug(`[System] Gemini 3 failed, attempting fallback to ${FALLBACK_MODEL}...`);
+            currentModel = FALLBACK_MODEL;
+            setTimeout(() => startSession(), 1000);
+        }
     };
 }
 
