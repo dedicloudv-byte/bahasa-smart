@@ -104,7 +104,6 @@ async function messageLoop() {
     while (true) {
         if (responseQueue.length > 0) {
             const message = responseQueue.shift();
-            console.log('Received message:', message);
 
             if (message.serverContent) {
                 if (message.serverContent.interrupted) {
@@ -113,13 +112,14 @@ async function messageLoop() {
                     stopPlayback();
                 }
 
-                if (message.serverContent.modelTurn && message.serverContent.modelTurn.parts) {
-                    for (const part of message.serverContent.modelTurn.parts) {
+                const modelTurn = message.serverContent.modelTurn;
+                if (modelTurn && modelTurn.parts) {
+                    for (const part of modelTurn.parts) {
                         if (part.inlineData && part.inlineData.data) {
-                            console.log('Received audio chunk');
                             audioQueue.push(part.inlineData.data);
                         }
-                        if (part.text) {
+                        if (part.text && part.text.trim()) {
+                            logDebug(`[AI Text] ${part.text}`);
                             appendMessage('AI', part.text);
                         }
                     }
@@ -210,7 +210,12 @@ async function startSession() {
             setup: {
                 model: `models/${currentModel}`,
                 generationConfig: {
-                    responseModalities: ["AUDIO"]
+                    responseModalities: ["AUDIO", "TEXT"]
+                },
+                systemInstruction: {
+                    parts: [{
+                        text: "Anda adalah BAHASA SMART, asisten edukasi belajar bahasa yang interaktif. Bantu pengguna belajar bahasa apa pun dengan suara dan teks. Gunakan gaya bahasa yang ramah dan mendukung."
+                    }]
                 }
             }
         };
@@ -322,7 +327,13 @@ function arrayBufferToBase64(buffer) {
 
 function appendMessage(sender, text) {
     const div = document.createElement('div');
-    div.className = sender === 'AI' ? 'msg-ai animate-fade-in' : 'msg-user animate-fade-in';
+    if (sender === 'AI') {
+        div.className = 'msg-ai animate-fade-in';
+    } else if (sender === 'System') {
+        div.className = 'text-center text-[10px] text-gray-500 my-2 animate-fade-in italic';
+    } else {
+        div.className = 'msg-user animate-fade-in';
+    }
     div.innerText = text;
     chatBox.appendChild(div);
     chatBox.scrollTop = chatBox.scrollHeight;
@@ -337,10 +348,20 @@ function updateVisualizer(data) {
 
 function sendTextMessage() {
     const text = textInput.value.trim();
-    if (!text || !socket || socket.readyState !== WebSocket.OPEN) return;
+    if (!text) return;
+
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+        logDebug("[System] Menghubungkan sebelum mengirim teks...");
+        startSession();
+        // We'll wait for setupComplete to send the message?
+        // For simplicity, just tell user to try again in a sec.
+        appendMessage('System', 'Sedang menghubungkan... Silakan coba lagi sebentar lagi.');
+        return;
+    }
 
     appendMessage('User', text);
     textInput.value = '';
+    logDebug(`[Send Text] ${text}`);
 
     socket.send(JSON.stringify({
         clientContent: {
