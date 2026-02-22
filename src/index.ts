@@ -37,17 +37,16 @@ app.post('/api/chat', async (c) => {
     }
     const apiKey = await obj.text()
 
-    const genAI = new GoogleGenAI(apiKey)
-    const model = genAI.getGenerativeModel({
+    const genAI = new GoogleGenAI({ apiKey })
+    const response = await genAI.models.generateContent({
       model: "gemini-3-flash-preview",
-      systemInstruction: systemInstruction
+      contents: contents,
+      config: {
+        systemInstruction: systemInstruction
+      }
     })
 
-    const result = await model.generateContent({ contents })
-    const response = result.response
-    const text = response.text()
-
-    return c.json({ text: text })
+    return c.json({ text: response.text })
   } catch (e: any) {
     console.error('Gemini API Error:', e)
     return c.json({ error: e.message || 'Failed to generate content' }, 500)
