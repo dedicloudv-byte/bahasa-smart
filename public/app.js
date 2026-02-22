@@ -1,9 +1,6 @@
 // Constants
 const API_CONFIG_URL = '/api/config';
-const GEMINI_WS_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
-// Using the model from user snippet
-let currentModel = 'gemini-3-flash-preview';
-const FALLBACK_MODEL = 'gemini-2.0-flash-exp';
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:streamGenerateContent';
 
 // UI Elements
 const setupContainer = document.getElementById('setup-container');
@@ -14,27 +11,20 @@ const statusText = document.getElementById('status-text');
 const statusDot = document.getElementById('status-dot');
 const apiKeyInput = document.getElementById('api-key-input');
 const saveKeyBtn = document.getElementById('save-key-btn');
-const micBtn = document.getElementById('mic-btn');
-const micStatus = document.getElementById('mic-status');
-const aiSpeakingIndicator = document.getElementById('ai-speaking-indicator');
 const chatBox = document.getElementById('chat-box');
 const debugLogs = document.getElementById('debug-logs');
 const textInput = document.getElementById('text-input');
 const sendBtn = document.getElementById('send-btn');
-const visualizerBars = document.querySelectorAll('.v-bar');
+const clearChatBtn = document.getElementById('clear-chat-btn');
 
 // State
 let apiKey = null;
-let socket = null;
-const responseQueue = [];
-const audioQueue = [];
-let audioContext = null;
-let playbackContext = null;
-let stream = null;
-let processor = null;
-let isRecording = false;
-let isPlaying = false;
-let currentSource = null;
+let chatHistory = [];
+const SYSTEM_INSTRUCTION = "Anda adalah BAHASA SMART, asisten edukasi belajar bahasa yang interaktif dan premium. " +
+    "Tugas Anda adalah membantu pengguna belajar bahasa apa pun (Inggris, Jepang, Arab, dll) melalui percakapan teks. " +
+    "Selalu gunakan gaya bahasa yang ramah, profesional, dan sangat mendukung. " +
+    "Secara proaktif berikan koreksi jika ada kesalahan tata bahasa atau pemilihan kata dalam pesan pengguna. " +
+    "Berikan penjelasan singkat tentang koreksi tersebut. Gunakan Markdown jika perlu untuk memperjelas format.";
 
 // Initialize
 async function init() {
@@ -63,7 +53,7 @@ function showMainInterface() {
     loadingSpinner.classList.add('hidden');
     setupContainer.classList.add('hidden');
     mainInterface.classList.remove('hidden');
-    updateStatus('Ready', 'bg-green-500');
+    updateStatus('AI Aktif', 'bg-green-500');
 }
 
 function updateStatus(text, colorClass) {
@@ -99,298 +89,170 @@ saveKeyBtn.addEventListener('click', async () => {
     }
 });
 
-// Loops
-async function messageLoop() {
-    while (true) {
-        if (responseQueue.length > 0) {
-            const message = responseQueue.shift();
-
-            if (message.serverContent) {
-                if (message.serverContent.interrupted) {
-                    console.log('Interrupted');
-                    audioQueue.length = 0;
-                    stopPlayback();
-                }
-
-                const modelTurn = message.serverContent.modelTurn;
-                if (modelTurn && modelTurn.parts) {
-                    for (const part of modelTurn.parts) {
-                        if (part.inlineData && part.inlineData.data) {
-                            audioQueue.push(part.inlineData.data);
-                        }
-                        if (part.text && part.text.trim()) {
-                            logDebug(`[AI Text] ${part.text}`);
-                            appendMessage('AI', part.text);
-                        }
-                    }
-                }
-            }
+// Chat Logic
+function appendMessage(sender, text, isStreaming = false) {
+    let div;
+    if (isStreaming) {
+        div = document.getElementById('streaming-msg');
+        if (!div) {
+            div = document.createElement('div');
+            div.id = 'streaming-msg';
+            div.className = 'msg-ai animate-fade-in';
+            chatBox.appendChild(div);
         }
-        await new Promise(r => setTimeout(r, 10));
-    }
-}
-
-async function playbackLoop() {
-    while (true) {
-        if (audioQueue.length > 0 && !isPlaying) {
-            await playNextChunk();
-        }
-        await new Promise(r => setTimeout(r, 10));
-    }
-}
-
-function stopPlayback() {
-    if (currentSource) {
-        try { currentSource.stop(); } catch(e) {}
-        currentSource = null;
-    }
-    isPlaying = false;
-}
-
-async function playNextChunk() {
-    if (audioQueue.length === 0) {
-        aiSpeakingIndicator.classList.add('hidden');
-        return;
-    }
-
-    aiSpeakingIndicator.classList.remove('hidden');
-    if (!playbackContext) {
-        playbackContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
-    }
-    if (playbackContext.state === 'suspended') await playbackContext.resume();
-
-    isPlaying = true;
-    const base64Data = audioQueue.shift();
-    const binaryData = atob(base64Data);
-    const bytes = new Uint8Array(binaryData.length);
-    for (let i = 0; i < binaryData.length; i++) {
-        bytes[i] = binaryData.charCodeAt(i);
-    }
-
-    if (!playbackContext) {
-        playbackContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
-    }
-
-    const audioBuffer = playbackContext.createBuffer(1, bytes.length / 2, 24000);
-    const channelData = audioBuffer.getChannelData(0);
-    const dataView = new DataView(bytes.buffer);
-
-    for (let i = 0; i < bytes.length / 2; i++) {
-        channelData[i] = dataView.getInt16(i * 2, true) / 32768;
-    }
-
-    const source = playbackContext.createBufferSource();
-    source.buffer = audioBuffer;
-    source.connect(playbackContext.destination);
-    currentSource = source;
-
-    return new Promise((resolve) => {
-        source.onended = () => {
-            if (currentSource === source) currentSource = null;
-            isPlaying = false;
-            resolve();
-        };
-        source.start();
-    });
-}
-
-// Session
-async function startSession() {
-    if (!apiKey) return;
-
-    if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-    if (audioContext.state === 'suspended') await audioContext.resume();
-
-    updateStatus('Menghubungkan...', 'bg-yellow-500');
-    socket = new WebSocket(`${GEMINI_WS_URL}?key=${apiKey}`);
-
-    socket.onopen = () => {
-        updateStatus('Tersambung', 'bg-green-500');
-        const setup = {
-            setup: {
-                model: `models/${currentModel}`,
-                generationConfig: {
-                    responseModalities: ["AUDIO", "TEXT"]
-                },
-                systemInstruction: {
-                    parts: [{
-                        text: "Anda adalah BAHASA SMART, asisten edukasi belajar bahasa yang interaktif. Bantu pengguna belajar bahasa apa pun dengan suara dan teks. Gunakan gaya bahasa yang ramah dan mendukung."
-                    }]
-                }
-            }
-        };
-        socket.send(JSON.stringify(setup));
-    };
-
-    socket.onmessage = (event) => {
-        const response = JSON.parse(event.data);
-        logDebug(`[WS] ${JSON.stringify(response).substring(0, 100)}...`);
-
-        // Error handling
-        if (response.error) {
-            appendMessage('System', 'Error: ' + response.error.message);
-            updateStatus('Error', 'bg-red-500');
-            return;
-        }
-
-        responseQueue.push(response);
-
-        if (response.setupComplete) {
-            console.log('Setup Complete');
-            startRecording();
-        }
-    };
-
-    socket.onerror = (e) => {
-        updateStatus('Error', 'bg-red-500');
-        console.error('WS Error', e);
-    };
-
-    socket.onclose = (e) => {
-        updateStatus('Terputus', 'bg-gray-500');
-        logDebug(`[WS Close] Code: ${e.code}, Reason: ${e.reason || 'None'}`);
-        stopRecording();
-
-        // Fallback logic if it fails immediately
-        if (currentModel === 'gemini-3-flash-preview' && e.code === 1006) {
-            logDebug(`[System] Gemini 3 failed, attempting fallback to ${FALLBACK_MODEL}...`);
-            currentModel = FALLBACK_MODEL;
-            setTimeout(() => startSession(), 1000);
-        }
-    };
-}
-
-async function startRecording() {
-    if (isRecording) return;
-
-    try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const source = audioContext.createMediaStreamSource(stream);
-        processor = audioContext.createScriptProcessor(2048, 1, 1); // Smaller buffer for lower latency
-
-        source.connect(processor);
-        processor.connect(audioContext.destination);
-
-        processor.onaudioprocess = (e) => {
-            if (!isRecording || !socket || socket.readyState !== WebSocket.OPEN) return;
-
-            const inputData = e.inputBuffer.getChannelData(0);
-            const pcmData = floatTo16BitPCM(inputData);
-            const base64Data = arrayBufferToBase64(pcmData);
-
-            // Fixed: use 'audio' instead of 'mediaChunks'
-            socket.send(JSON.stringify({
-                realtimeInput: {
-                    audio: {
-                        mimeType: "audio/pcm;rate=16000",
-                        data: base64Data
-                    }
-                }
-            }));
-            updateVisualizer(inputData);
-        };
-
-        isRecording = true;
-        document.body.classList.add('recording');
-        micStatus.innerText = 'Neural Voice Aktif';
-    } catch (err) {
-        console.error('Mic Error:', err);
-    }
-}
-
-function stopRecording() {
-    isRecording = false;
-    document.body.classList.remove('recording');
-    micStatus.innerText = 'Siap untuk Mendengarkan';
-    if (stream) stream.getTracks().forEach(t => t.stop());
-    if (processor) processor.disconnect();
-}
-
-function floatTo16BitPCM(input) {
-    const buffer = new ArrayBuffer(input.length * 2);
-    const view = new DataView(buffer);
-    for (let i = 0; i < input.length; i++) {
-        let s = Math.max(-1, Math.min(1, input[i]));
-        view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-    }
-    return buffer;
-}
-
-function arrayBufferToBase64(buffer) {
-    let binary = '';
-    const bytes = new Uint8Array(buffer);
-    for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return window.btoa(binary);
-}
-
-function appendMessage(sender, text) {
-    const div = document.createElement('div');
-    if (sender === 'AI') {
-        div.className = 'msg-ai animate-fade-in';
-    } else if (sender === 'System') {
-        div.className = 'text-center text-[10px] text-gray-500 my-2 animate-fade-in italic';
+        div.innerText = text;
     } else {
-        div.className = 'msg-user animate-fade-in';
+        // Remove streaming ID if it exists
+        const streamingDiv = document.getElementById('streaming-msg');
+        if (streamingDiv && sender === 'AI') {
+            streamingDiv.removeAttribute('id');
+            streamingDiv.innerText = text;
+            div = streamingDiv;
+        } else {
+            div = document.createElement('div');
+            if (sender === 'AI') {
+                div.className = 'msg-ai animate-fade-in';
+            } else if (sender === 'System') {
+                div.className = 'text-center text-[10px] text-gray-500 my-2 animate-fade-in italic';
+            } else {
+                div.className = 'msg-user animate-fade-in';
+            }
+            div.innerText = text;
+            chatBox.appendChild(div);
+        }
     }
-    div.innerText = text;
+    chatBox.scrollTop = chatBox.scrollHeight;
+    return div;
+}
+
+function showTypingIndicator() {
+    const div = document.createElement('div');
+    div.id = 'typing-indicator';
+    div.className = 'typing-indicator animate-fade-in ml-2 mb-4';
+    div.innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot"></div>';
     chatBox.appendChild(div);
     chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-function updateVisualizer(data) {
-    for (let i = 0; i < visualizerBars.length; i++) {
-        const val = Math.abs(data[Math.floor(i * data.length / visualizerBars.length)]) * 100;
-        visualizerBars[i].style.height = `${Math.max(4, val * 3)}px`;
-    }
+function removeTypingIndicator() {
+    const div = document.getElementById('typing-indicator');
+    if (div) div.remove();
 }
 
-function sendTextMessage() {
+async function sendTextMessage() {
     const text = textInput.value.trim();
-    if (!text) return;
-
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
-        logDebug("[System] Menghubungkan sebelum mengirim teks...");
-        startSession();
-        // We'll wait for setupComplete to send the message?
-        // For simplicity, just tell user to try again in a sec.
-        appendMessage('System', 'Sedang menghubungkan... Silakan coba lagi sebentar lagi.');
-        return;
-    }
+    if (!text || !apiKey) return;
 
     appendMessage('User', text);
     textInput.value = '';
-    logDebug(`[Send Text] ${text}`);
+    textInput.disabled = true;
+    sendBtn.disabled = true;
 
-    socket.send(JSON.stringify({
-        clientContent: {
-            turns: [{
-                role: "user",
-                parts: [{ text: text }]
-            }],
-            turnComplete: true
+    showTypingIndicator();
+
+    chatHistory.push({ role: "user", parts: [{ text: text }] });
+
+    try {
+        const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: chatHistory,
+                systemInstruction: {
+                    parts: [{ text: SYSTEM_INSTRUCTION }]
+                }
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error?.message || 'Gagal menghubungi AI');
         }
-    }));
+
+        removeTypingIndicator();
+        const reader = response.body.getReader();
+        let fullText = "";
+
+        let buffer = "";
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += new TextDecoder().decode(value);
+
+            // Basic parsing for Gemini stream format which is an array of objects
+            // [
+            //   {...},
+            //   {...}
+            // ]
+            // We look for objects between { and }
+
+            let startBracket = buffer.indexOf('{');
+            while (startBracket !== -1) {
+                let endBracket = -1;
+                let bracketCount = 0;
+                for (let i = startBracket; i < buffer.length; i++) {
+                    if (buffer[i] === '{') bracketCount++;
+                    else if (buffer[i] === '}') {
+                        bracketCount--;
+                        if (bracketCount === 0) {
+                            endBracket = i;
+                            break;
+                        }
+                    }
+                }
+
+                if (endBracket !== -1) {
+                    const jsonStr = buffer.substring(startBracket, endBracket + 1);
+                    try {
+                        const json = JSON.parse(jsonStr);
+                        const content = json.candidates?.[0]?.content?.parts?.[0]?.text;
+                        if (content) {
+                            fullText += content;
+                            appendMessage('AI', fullText, true);
+                        }
+                    } catch (e) {
+                        console.error("JSON Parse Error", e);
+                    }
+                    buffer = buffer.substring(endBracket + 1);
+                    startBracket = buffer.indexOf('{');
+                } else {
+                    break;
+                }
+            }
+        }
+
+        // Finalize message
+        const finalDiv = appendMessage('AI', fullText);
+        chatHistory.push({ role: "model", parts: [{ text: fullText }] });
+        logDebug(`[AI Response] Received ${fullText.length} chars`);
+
+    } catch (e) {
+        logDebug(`[Error] ${e.message}`);
+        appendMessage('System', `Error: ${e.message}`);
+        removeTypingIndicator();
+    } finally {
+        textInput.disabled = false;
+        sendBtn.disabled = false;
+        textInput.focus();
+    }
 }
 
+// Event Listeners
 sendBtn.addEventListener('click', sendTextMessage);
 textInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendTextMessage();
 });
 
-micBtn.addEventListener('click', () => {
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
-        startSession();
-    } else {
-        if (isRecording) {
-            stopRecording();
-        } else {
-            startRecording();
-        }
-    }
+clearChatBtn.addEventListener('click', () => {
+    chatBox.innerHTML = `
+        <div class="msg-ai animate-fade-in">
+            Obrolan dibersihkan. Apa yang ingin Anda pelajari sekarang?
+        </div>
+    `;
+    chatHistory = [];
+    logDebug('[System] Chat history cleared');
 });
 
-messageLoop();
-playbackLoop();
+// Start
 init();
