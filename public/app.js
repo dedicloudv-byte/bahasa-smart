@@ -12,6 +12,8 @@ const statusText = document.getElementById('status-text');
 const statusDot = document.getElementById('status-dot');
 const apiKeyInput = document.getElementById('api-key-input');
 const saveKeyBtn = document.getElementById('save-key-btn');
+const settingsBtn = document.getElementById('settings-btn');
+const cancelSetupBtn = document.getElementById('cancel-setup-btn');
 const chatBox = document.getElementById('chat-box');
 const debugLogs = document.getElementById('debug-logs');
 const textInput = document.getElementById('text-input');
@@ -43,10 +45,20 @@ async function init() {
     }
 }
 
-function showSetup() {
+function showSetup(isUpdate = false) {
     loadingSpinner.classList.add('hidden');
     setupContainer.classList.remove('hidden');
     mainInterface.classList.add('hidden');
+
+    if (isUpdate) {
+        cancelSetupBtn.classList.remove('hidden');
+        document.querySelector('#setup-container h2').innerText = 'Perbarui API Key';
+        saveKeyBtn.innerText = 'Simpan Perubahan';
+    } else {
+        cancelSetupBtn.classList.add('hidden');
+        document.querySelector('#setup-container h2').innerText = 'Konfigurasi AI';
+        saveKeyBtn.innerText = 'Aktifkan Sekarang';
+    }
 }
 
 function showMainInterface() {
@@ -75,17 +87,28 @@ saveKeyBtn.addEventListener('click', async () => {
 
     saveKeyBtn.disabled = true;
     try {
-        await fetch(API_SAVE_URL, {
+        const response = await fetch(API_SAVE_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ key })
         });
+        if (!response.ok) throw new Error('Failed to save');
+        apiKeyInput.value = '';
         showMainInterface();
+        logDebug('[System] API Key updated successfully');
     } catch (e) {
         alert('Gagal menyimpan key');
     } finally {
         saveKeyBtn.disabled = false;
     }
+});
+
+settingsBtn.addEventListener('click', () => {
+    showSetup(true);
+});
+
+cancelSetupBtn.addEventListener('click', () => {
+    showMainInterface();
 });
 
 // Chat Logic
