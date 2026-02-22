@@ -18,11 +18,7 @@ Your worker has access to the following bindings:
   - APP_TITLE: "BAHASA SMART"
 [wrangler:inf] Ready on http://localhost:8787
 ⎔ Starting local server...
-[wrangler:inf] GET / 200 OK (11ms)
-[wrangler:inf] GET /style.css 200 OK (7ms)
-[wrangler:inf] GET /app.js 200 OK (7ms)
-[wrangler:inf] GET /api/config-status 200 OK (16ms)
-[wrangler:inf] GET / 200 OK (5ms)
-[wrangler:inf] GET /style.css 200 OK (5ms)
-[wrangler:inf] GET /app.js 200 OK (8ms)
-[wrangler:inf] GET /api/config-status 200 OK (6ms)
+[wrangler:inf] GET / 200 OK (22ms)
+[wrangler:inf] GET /style.css 200 OK (18ms)
+[wrangler:inf] GET /app.js 200 OK (23ms)
+[wrangler:inf] GET /api/config-status 200 OK (43ms)
