@@ -2,7 +2,7 @@
 const API_CONFIG_URL = '/api/config';
 const GEMINI_WS_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
 // Using the model from user snippet
-const MODEL_NAME = 'models/gemini-2.5-flash-native-audio-preview-12-2025';
+const MODEL_NAME = 'models/gemini-2.0-flash-exp';
 
 // UI Elements
 const setupContainer = document.getElementById('setup-container');
@@ -199,10 +199,7 @@ async function startSession() {
             setup: {
                 model: MODEL_NAME,
                 generationConfig: {
-                    responseModalities: ["audio"]
-                },
-                systemInstruction: {
-                    parts: [{ text: "Anda adalah 'BAHASA SMART', asisten AI elit yang membantu belajar bahasa. Berikan respons melalui suara. Jadilah ramah dan edukatif." }]
+                    responseModalities: ["AUDIO"]
                 }
             }
         };
@@ -211,6 +208,7 @@ async function startSession() {
 
     socket.onmessage = (event) => {
         const response = JSON.parse(event.data);
+        console.log('Raw WS message:', response);
         responseQueue.push(response);
 
         if (response.setupComplete) {
