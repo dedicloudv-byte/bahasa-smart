@@ -1,0 +1,14 @@
+name = "bahasa-smart"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+
+[assets]
+directory = "./public"
+
+[vars]
+# No static vars needed for now, maybe title?
+APP_TITLE = "BAHASA SMART"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "vpsai"

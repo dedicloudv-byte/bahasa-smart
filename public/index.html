@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BAHASA SMART - AI Language Tutor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <nav class="bg-blue-600 text-white p-4 shadow-md">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold flex items-center gap-2">
+                <i class="fas fa-graduation-cap"></i> BAHASA SMART
+            </h1>
+            <div id="status-badge" class="px-3 py-1 rounded-full text-sm bg-gray-500">
+                Checking Config...
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow container mx-auto p-4 flex flex-col items-center justify-center">
+
+        <!-- Setup Modal/Overlay -->
+        <div id="setup-container" class="hidden w-full max-w-md bg-white p-8 rounded-lg shadow-xl">
+            <h2 class="text-xl font-semibold mb-4">Set up Gemini API</h2>
+            <p class="text-gray-600 mb-6">Masukkan Gemini API Key Anda untuk mulai belajar dengan AI Voice.</p>
+            <input type="password" id="api-key-input" placeholder="Enter API Key" class="w-full p-2 border rounded mb-4">
+            <button id="save-key-btn" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition">
+                Simpan & Mulai
+            </button>
+        </div>
+
+        <!-- Interaction Area -->
+        <div id="main-interface" class="hidden w-full max-w-2xl bg-white p-6 rounded-lg shadow-lg flex flex-col gap-6">
+            <div class="text-center">
+                <h2 class="text-2xl font-bold text-blue-700">Selamat Datang di Bahasa Smart</h2>
+                <p class="text-gray-500">Belajar bahasa apa saja dengan bantuan AI secara real-time.</p>
+            </div>
+
+            <div id="chat-box" class="flex-grow overflow-y-auto min-h-[300px] border-b mb-4 p-4 flex flex-col gap-4">
+                <div class="bg-blue-50 p-3 rounded-lg self-start max-w-[80%]">
+                    Halo! Saya asisten Bahasa Smart. Bahasa apa yang ingin Anda pelajari hari ini?
+                </div>
+            </div>
+
+            <!-- Voice Controls -->
+            <div class="flex flex-col items-center gap-4">
+                <div id="visualizer-container" class="w-full h-16 bg-gray-50 rounded-full overflow-hidden flex items-center justify-center gap-1">
+                    <!-- Visualizer bars will be here -->
+                    <div class="w-1 bg-blue-400 h-2 rounded"></div>
+                    <div class="w-1 bg-blue-400 h-2 rounded"></div>
+                    <div class="w-1 bg-blue-400 h-2 rounded"></div>
+                    <div class="w-1 bg-blue-400 h-2 rounded"></div>
+                    <div class="w-1 bg-blue-400 h-2 rounded"></div>
+                </div>
+
+                <button id="mic-btn" class="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center text-white text-3xl shadow-lg hover:scale-105 transition active:scale-95 disabled:bg-gray-400">
+                    <i class="fas fa-microphone"></i>
+                </button>
+                <p id="mic-status" class="text-sm text-gray-500">Klik tombol untuk mulai bicara</p>
+            </div>
+        </div>
+
+        <div id="loading-spinner" class="text-blue-600">
+            <i class="fas fa-spinner fa-spin fa-3x"></i>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white p-4 text-center text-sm">
+        &copy; 2025 BAHASA SMART - Powered by Gemini AI & Cloudflare
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>

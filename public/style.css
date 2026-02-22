@@ -1,0 +1,27 @@
+body {
+    font-family: 'Inter', sans-serif;
+}
+
+#visualizer-container div {
+    transition: height 0.1s ease;
+}
+
+.recording #mic-btn {
+    background-color: #ef4444; /* Red-500 */
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+    70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+#chat-box::-webkit-scrollbar {
+    width: 6px;
+}
+
+#chat-box::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 3px;
+}

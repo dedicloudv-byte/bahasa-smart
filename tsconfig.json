@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "strict": true,
+    "lib": ["ESNext", "DOM"],
+    "types": ["@cloudflare/workers-types"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "hono/jsx"
+  },
+  "include": ["src/**/*"]
+}
