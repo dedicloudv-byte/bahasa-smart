@@ -2,7 +2,7 @@
 const API_CONFIG_URL = '/api/config';
 const GEMINI_WS_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
 // Using the model from user snippet
-const MODEL_NAME = 'models/gemini-2.0-flash-exp';
+const MODEL_NAME = 'models/gemini-3-flash-preview';
 
 // UI Elements
 const setupContainer = document.getElementById('setup-container');
@@ -17,6 +17,9 @@ const micBtn = document.getElementById('mic-btn');
 const micStatus = document.getElementById('mic-status');
 const aiSpeakingIndicator = document.getElementById('ai-speaking-indicator');
 const chatBox = document.getElementById('chat-box');
+const debugLogs = document.getElementById('debug-logs');
+const textInput = document.getElementById('text-input');
+const sendBtn = document.getElementById('send-btn');
 const visualizerBars = document.querySelectorAll('.v-bar');
 
 // State
@@ -65,6 +68,13 @@ function showMainInterface() {
 function updateStatus(text, colorClass) {
     statusText.innerText = text;
     statusDot.className = `w-2 h-2 rounded-full ${colorClass}`;
+    logDebug(`[Status] ${text}`);
+}
+
+function logDebug(msg) {
+    const time = new Date().toLocaleTimeString();
+    debugLogs.innerText += `\n[${time}] ${msg}`;
+    debugLogs.scrollTop = debugLogs.scrollHeight;
 }
 
 // Save Key
@@ -199,7 +209,17 @@ async function startSession() {
             setup: {
                 model: MODEL_NAME,
                 generationConfig: {
-                    responseModalities: ["AUDIO"]
+                    responseModalities: ["AUDIO", "TEXT"],
+                    speechConfig: {
+                        voiceConfig: {
+                            prebuiltVoiceConfig: {
+                                voiceName: "Aoide" // High quality neural voice
+                            }
+                        }
+                    }
+                },
+                systemInstruction: {
+                    parts: [{ text: "Anda adalah 'BAHASA SMART', tutor bahasa elit. Bantu pengguna belajar bahasa apa pun. Berikan penjelasan singkat dan padat." }]
                 }
             }
         };
@@ -208,7 +228,15 @@ async function startSession() {
 
     socket.onmessage = (event) => {
         const response = JSON.parse(event.data);
-        console.log('Raw WS message:', response);
+        logDebug(`[WS] ${JSON.stringify(response).substring(0, 100)}...`);
+
+        // Error handling
+        if (response.error) {
+            appendMessage('System', 'Error: ' + response.error.message);
+            updateStatus('Error', 'bg-red-500');
+            return;
+        }
+
         responseQueue.push(response);
 
         if (response.setupComplete) {
@@ -307,6 +335,29 @@ function updateVisualizer(data) {
         visualizerBars[i].style.height = `${Math.max(4, val * 3)}px`;
     }
 }
+
+function sendTextMessage() {
+    const text = textInput.value.trim();
+    if (!text || !socket || socket.readyState !== WebSocket.OPEN) return;
+
+    appendMessage('User', text);
+    textInput.value = '';
+
+    socket.send(JSON.stringify({
+        clientContent: {
+            turns: [{
+                role: "user",
+                parts: [{ text: text }]
+            }],
+            turnComplete: true
+        }
+    }));
+}
+
+sendBtn.addEventListener('click', sendTextMessage);
+textInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') sendTextMessage();
+});
 
 micBtn.addEventListener('click', () => {
     if (!socket || socket.readyState !== WebSocket.OPEN) {
