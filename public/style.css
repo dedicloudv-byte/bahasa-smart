@@ -1,27 +1,93 @@
+:root {
+    --premium-blur: blur(20px);
+}
+
 body {
-    font-family: 'Inter', sans-serif;
+    background-color: #050505;
+    -webkit-font-smoothing: antialiased;
 }
 
-#visualizer-container div {
-    transition: height 0.1s ease;
+.glass {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: var(--premium-blur);
+    -webkit-backdrop-filter: var(--premium-blur);
 }
 
-.recording #mic-btn {
-    background-color: #ef4444; /* Red-500 */
-    animation: pulse 1.5s infinite;
+.animate-fade-in {
+    animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@keyframes pulse {
-    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-    70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
-    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
-#chat-box::-webkit-scrollbar {
+/* Custom Scrollbar */
+::-webkit-scrollbar {
     width: 6px;
 }
 
-#chat-box::-webkit-scrollbar-thumb {
-    background-color: #cbd5e1;
-    border-radius: 3px;
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Visualizer Bars */
+.v-bar {
+    width: 4px;
+    height: 8px;
+    background: #4f46e5;
+    border-radius: 20px;
+    transition: height 0.1s ease;
+}
+
+/* Recording State */
+.recording #mic-btn {
+    background: #ef4444;
+    border-color: #ef4444;
+    box-shadow: 0 0 30px rgba(239, 68, 68, 0.4);
+    animation: pulseMic 2s infinite;
+}
+
+@keyframes pulseMic {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.recording .v-bar {
+    background: #ef4444;
+}
+
+/* Chat Bubbles */
+.msg-ai {
+    align-self: flex-start;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px border rgba(255, 255, 255, 0.05);
+    color: #e5e7eb;
+    padding: 12px 18px;
+    border-radius: 20px 20px 20px 4px;
+    max-width: 85%;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.msg-user {
+    align-self: flex-end;
+    background: linear-gradient(135deg, #4f46e5, #4338ca);
+    color: white;
+    padding: 12px 18px;
+    border-radius: 20px 20px 4px 20px;
+    max-width: 85%;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    box-shadow: 0 4px 15px rgba(79, 70, 229, 0.2);
 }

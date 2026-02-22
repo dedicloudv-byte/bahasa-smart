@@ -1,80 +1,154 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BAHASA SMART - AI Language Tutor</title>
+    <title>BAHASA SMART | Elite AI Tutor</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                    },
+                    colors: {
+                        premium: {
+                            50: '#f0f4ff',
+                            100: '#e0e9ff',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            800: '#3730a3',
+                            900: '#312e81',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col">
+<body class="bg-[#050505] text-white min-h-screen flex flex-col selection:bg-premium-600/30">
 
-    <!-- Navbar -->
-    <nav class="bg-blue-600 text-white p-4 shadow-md">
-        <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-2xl font-bold flex items-center gap-2">
-                <i class="fas fa-graduation-cap"></i> BAHASA SMART
-            </h1>
-            <div id="status-badge" class="px-3 py-1 rounded-full text-sm bg-gray-500">
-                Checking Config...
+    <!-- Ambient Background -->
+    <div class="fixed inset-0 -z-10 overflow-hidden">
+        <div class="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-premium-900/20 blur-[120px] rounded-full"></div>
+        <div class="absolute top-[20%] -right-[10%] w-[30%] h-[30%] bg-blue-900/10 blur-[100px] rounded-full"></div>
+        <div class="absolute bottom-0 left-[20%] w-[50%] h-[50%] bg-indigo-900/10 blur-[150px] rounded-full"></div>
+    </div>
+
+    <!-- Header -->
+    <header class="border-b border-white/5 backdrop-blur-xl bg-black/20 sticky top-0 z-50">
+        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-gradient-to-tr from-premium-600 to-blue-400 rounded-xl flex items-center justify-center shadow-lg shadow-premium-600/20">
+                    <i class="fas fa-brain text-white text-xl"></i>
+                </div>
+                <h1 class="text-xl font-bold tracking-tight">BAHASA <span class="text-premium-600">SMART</span></h1>
+            </div>
+            <div id="status-badge" class="flex items-center gap-2 px-4 py-1.5 rounded-full border border-white/10 bg-white/5 text-xs font-medium transition-all">
+                <span class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" id="status-dot"></span>
+                <span id="status-text">Menyiapkan...</span>
             </div>
         </div>
-    </nav>
+    </header>
 
-    <!-- Main Content -->
-    <main class="flex-grow container mx-auto p-4 flex flex-col items-center justify-center">
+    <main class="flex-grow container mx-auto px-6 py-12 flex flex-col items-center justify-center relative">
 
-        <!-- Setup Modal/Overlay -->
-        <div id="setup-container" class="hidden w-full max-w-md bg-white p-8 rounded-lg shadow-xl">
-            <h2 class="text-xl font-semibold mb-4">Set up Gemini API</h2>
-            <p class="text-gray-600 mb-6">Masukkan Gemini API Key Anda untuk mulai belajar dengan AI Voice.</p>
-            <input type="password" id="api-key-input" placeholder="Enter API Key" class="w-full p-2 border rounded mb-4">
-            <button id="save-key-btn" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition">
-                Simpan & Mulai
-            </button>
+        <!-- API Setup Overlay -->
+        <div id="setup-container" class="hidden w-full max-w-md animate-fade-in">
+            <div class="glass p-8 rounded-3xl border border-white/10 shadow-2xl">
+                <h2 class="text-3xl font-bold mb-2">Konfigurasi AI</h2>
+                <p class="text-gray-400 mb-8">Hubungkan kecerdasan Gemini untuk memulai perjalanan belajar Anda.</p>
+
+                <div class="space-y-4">
+                    <div class="relative">
+                        <input type="password" id="api-key-input" placeholder="Gemini API Key"
+                               class="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 focus:outline-none focus:border-premium-600 focus:ring-1 focus:ring-premium-600 transition-all placeholder:text-gray-600">
+                        <i class="fas fa-key absolute right-5 top-1/2 -translate-y-1/2 text-gray-600"></i>
+                    </div>
+                    <button id="save-key-btn" class="w-full bg-premium-600 hover:bg-premium-700 text-white font-bold py-4 rounded-2xl transition-all transform active:scale-[0.98] shadow-lg shadow-premium-600/25">
+                        Aktifkan Sekarang
+                    </button>
+                </div>
+
+                <div class="mt-8 pt-8 border-t border-white/5 flex items-center gap-4 text-xs text-gray-500">
+                    <i class="fas fa-shield-halved text-premium-600 text-lg"></i>
+                    <p>Key Anda disimpan dengan aman di VPSAI Cloudflare R2 dan tidak akan pernah dibagikan.</p>
+                </div>
+            </div>
         </div>
 
-        <!-- Interaction Area -->
-        <div id="main-interface" class="hidden w-full max-w-2xl bg-white p-6 rounded-lg shadow-lg flex flex-col gap-6">
-            <div class="text-center">
-                <h2 class="text-2xl font-bold text-blue-700">Selamat Datang di Bahasa Smart</h2>
-                <p class="text-gray-500">Belajar bahasa apa saja dengan bantuan AI secara real-time.</p>
-            </div>
+        <!-- Interface Aplikasi -->
+        <div id="main-interface" class="hidden w-full max-w-4xl grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
 
-            <div id="chat-box" class="flex-grow overflow-y-auto min-h-[300px] border-b mb-4 p-4 flex flex-col gap-4">
-                <div class="bg-blue-50 p-3 rounded-lg self-start max-w-[80%]">
-                    Halo! Saya asisten Bahasa Smart. Bahasa apa yang ingin Anda pelajari hari ini?
+            <!-- Sidebar/Stats -->
+            <div class="lg:col-span-1 space-y-6">
+                <div class="glass p-6 rounded-3xl border border-white/10">
+                    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Sesi Aktif</h3>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-300">Target Bahasa</span>
+                            <span class="font-medium text-premium-600">Otomatis</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-300">Mode AI</span>
+                            <span class="font-medium">Live Voice</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="glass p-6 rounded-3xl border border-white/10 bg-gradient-to-br from-premium-600/10 to-transparent">
+                    <p class="text-xs text-gray-400 leading-relaxed">
+                        "Berbicaralah secara alami. AI akan merespons dalam bahasa yang Anda gunakan dan membantu mengoreksi jika ada kesalahan."
+                    </p>
                 </div>
             </div>
 
-            <!-- Voice Controls -->
-            <div class="flex flex-col items-center gap-4">
-                <div id="visualizer-container" class="w-full h-16 bg-gray-50 rounded-full overflow-hidden flex items-center justify-center gap-1">
-                    <!-- Visualizer bars will be here -->
-                    <div class="w-1 bg-blue-400 h-2 rounded"></div>
-                    <div class="w-1 bg-blue-400 h-2 rounded"></div>
-                    <div class="w-1 bg-blue-400 h-2 rounded"></div>
-                    <div class="w-1 bg-blue-400 h-2 rounded"></div>
-                    <div class="w-1 bg-blue-400 h-2 rounded"></div>
+            <!-- Chat & Voice Central -->
+            <div class="lg:col-span-2 space-y-6 flex flex-col h-[600px]">
+                <div id="chat-box" class="flex-grow glass rounded-3xl border border-white/10 p-6 overflow-y-auto flex flex-col gap-4 scroll-smooth">
+                    <!-- Messages -->
                 </div>
 
-                <button id="mic-btn" class="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center text-white text-3xl shadow-lg hover:scale-105 transition active:scale-95 disabled:bg-gray-400">
-                    <i class="fas fa-microphone"></i>
-                </button>
-                <p id="mic-status" class="text-sm text-gray-500">Klik tombol untuk mulai bicara</p>
+                <div class="glass p-6 rounded-3xl border border-white/10 flex flex-col items-center gap-6">
+                    <!-- Visualizer -->
+                    <div id="visualizer-container" class="w-full h-12 flex items-center justify-center gap-1.5">
+                        <!-- Bars dynamically added -->
+                        <div class="v-bar"></div><div class="v-bar"></div><div class="v-bar"></div>
+                        <div class="v-bar"></div><div class="v-bar"></div><div class="v-bar"></div>
+                        <div class="v-bar"></div><div class="v-bar"></div><div class="v-bar"></div>
+                        <div class="v-bar"></div><div class="v-bar"></div><div class="v-bar"></div>
+                    </div>
+
+                    <div class="flex items-center gap-8">
+                        <button id="mic-btn" class="w-20 h-20 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-2xl hover:bg-premium-600 hover:border-premium-600 transition-all duration-300 shadow-xl group">
+                            <i class="fas fa-microphone group-hover:scale-110 transition-transform"></i>
+                        </button>
+                    </div>
+
+                    <p id="mic-status" class="text-xs font-medium text-gray-500 uppercase tracking-widest">Siap untuk Mendengarkan</p>
+                </div>
             </div>
         </div>
 
-        <div id="loading-spinner" class="text-blue-600">
-            <i class="fas fa-spinner fa-spin fa-3x"></i>
+        <!-- Initial Loader -->
+        <div id="loading-spinner" class="flex flex-col items-center gap-4">
+            <div class="relative w-16 h-16">
+                <div class="absolute inset-0 rounded-full border-4 border-premium-600/20"></div>
+                <div class="absolute inset-0 rounded-full border-4 border-t-premium-600 animate-spin"></div>
+            </div>
+            <span class="text-sm font-medium text-gray-400">Menghubungkan ke Neural Engine...</span>
         </div>
 
     </main>
 
-    <!-- Footer -->
-    <footer class="bg-gray-800 text-white p-4 text-center text-sm">
-        &copy; 2025 BAHASA SMART - Powered by Gemini AI & Cloudflare
+    <footer class="py-8 px-6 border-t border-white/5 text-center">
+        <p class="text-gray-600 text-xs">
+            &copy; 2025 <span class="text-gray-400 font-semibold">BAHASA SMART</span>. Powered by Gemini Multimodal Live & Cloudflare Global Network.
+        </p>
     </footer>
 
     <script src="app.js"></script>
