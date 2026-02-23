@@ -371,7 +371,11 @@ testProxyBtn.addEventListener('click', async () => {
             showToast(`Koneksi Berhasil! Latency: ${data.latency}${locMsg}`, 'success');
             logDebug(`[Proxy] Connected via ${proxyUrl}. Latency: ${data.latency}. DC: ${loc.colo}. IP: ${loc.ip}`);
         } else {
-            showToast(`Gagal: ${data.error}`, 'error');
+            let errMsg = data.error;
+            if (errMsg.includes('consider using fetch instead')) {
+                errMsg = 'Cloudflare melarang port 80/443 untuk tunnel socket.';
+            }
+            showToast(`Gagal: ${errMsg}`, 'error');
         }
     } catch (e) {
         showToast('Kesalahan Jaringan / Timeout', 'error');
@@ -601,7 +605,11 @@ async function connectVPN() {
 
             appendMessage('System', `Terhubung ke jalur VPN ${activeNode.name}${locMsg}. Neural Engine siap.`);
         } else {
-            showToast(`Gagal: ${data.error}`, 'error');
+            let errMsg = data.error;
+            if (errMsg.includes('consider using fetch instead')) {
+                errMsg = 'Cloudflare melarang port 80/443 untuk tunnel socket. Silahkan gunakan port lain atau ganti node.';
+            }
+            showToast(`Gagal: ${errMsg}`, 'error');
             logDebug(`[VPN] Connection failed: ${data.error}`);
         }
     } catch (e) {

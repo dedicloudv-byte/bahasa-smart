@@ -95,15 +95,21 @@ async function handleChat(c: any, contents: any, systemInstruction: any) {
     const customFetch = async (url: string | URL | Request, init?: RequestInit) => {
         if (vlessChain) {
             const proxies = await getProxyBank();
-            if (proxies.length > 0) {
-                const p = proxies[Math.floor(Math.random() * proxies.length)];
+            // Filter out ports 80 and 443 as they are restricted for raw sockets in Workers
+            const validProxies = proxies.filter(p => p.port !== 80 && p.port !== 443);
+            if (validProxies.length > 0) {
+                const p = validProxies[Math.floor(Math.random() * validProxies.length)];
                 return proxyFetch(url, { ...init, proxy: `http://${p.ip}:${p.port}` });
             }
         }
         if (baseUrl && !baseUrl.toString().includes('googleapis.com')) {
-            if (/^https?:\/\/\d+\.\d+\.\d+\.\d+:\d+/.test(baseUrl.toString())) {
-                return proxyFetch(url, { ...init, proxy: baseUrl.toString() });
-            }
+            try {
+                const bUrl = new URL(baseUrl.toString());
+                // Only use proxyFetch if port is not restricted
+                if (bUrl.port !== '80' && bUrl.port !== '443') {
+                    return proxyFetch(url, { ...init, proxy: baseUrl.toString() });
+                }
+            } catch (e) {}
         }
         return fetch(url, init);
     };
@@ -199,9 +205,25 @@ app.post('/api/proxy-test', async (c) => {
     // If it's a VLESS account, we just test if we can reach the VLESS server
     if (isVless) {
         const url = new URL(proxyUrl);
-        const socket = connect({ hostname: url.hostname, port: parseInt(url.port) || 443 });
-        await socket.opened;
-        socket.close();
+        const port = parseInt(url.port) || 443;
+
+        if (port === 80 || port === 443) {
+            // Use fetch to bypass cloudflare:sockets restrictions on ports 80/443
+            try {
+                await fetch(`http${port === 443 ? 's' : ''}://${url.hostname}:${port}`, {
+                    method: 'HEAD',
+                    signal: controller.signal
+                });
+            } catch (e: any) {
+                if (e.name !== 'AbortError' && !e.message.includes('fetch failed')) {
+                   // If it's just a 404 or similar, it's still reachable
+                } else if (e.name === 'AbortError') throw e;
+            }
+        } else {
+            const socket = connect({ hostname: url.hostname, port });
+            await socket.opened;
+            socket.close();
+        }
 
         clearTimeout(id);
         return c.json({
@@ -213,6 +235,11 @@ app.post('/api/proxy-test', async (c) => {
 
     // Try to fetch trace through the proxy using proxyFetch
     try {
+        const pUrl = new URL(proxyUrl);
+        if (pUrl.port === '80' || pUrl.port === '443') {
+            throw new Error('Cloudflare Socket restriction: Ports 80 and 443 cannot be used for TCP tunneling in Workers. Please use a different port for your proxy.');
+        }
+
         const traceRes = await proxyFetch('https://www.cloudflare.com/cdn-cgi/trace', {
             proxy: proxyUrl,
             signal: controller.signal
