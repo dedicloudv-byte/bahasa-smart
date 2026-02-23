@@ -29,6 +29,10 @@ const clientApiKeyInput = document.getElementById('client-api-key');
 const rotateClientKeyBtn = document.getElementById('rotate-client-key-btn');
 const vpnConfigSection = document.getElementById('vpn-config-section');
 const vlessConfigUrl = document.getElementById('vless-config-url');
+const vpnOverlay = document.getElementById('vpn-overlay');
+const connectVpnBtn = document.getElementById('connect-vpn-btn');
+const inputArea = document.getElementById('input-area');
+const selectedNodeDisplay = document.getElementById('selected-node-display');
 const chatBox = document.getElementById('chat-box');
 const debugLogs = document.getElementById('debug-logs');
 const textInput = document.getElementById('text-input');
@@ -64,6 +68,10 @@ async function init() {
         const data = await res.json();
         if (data.configured) {
             showMainInterface();
+            await loadSettings();
+            // Update selected node display
+            const node = relayNodes.find(n => n.id === activeNodeId);
+            if (node && selectedNodeDisplay) selectedNodeDisplay.innerText = node.name;
         } else {
             showSetup();
         }
@@ -151,7 +159,19 @@ function renderNodeList() {
 function selectNode(id) {
     activeNodeId = id;
     renderNodeList();
+    const node = relayNodes.find(n => n.id === id);
+    if (node && selectedNodeDisplay) {
+        selectedNodeDisplay.innerText = node.name;
+    }
     logDebug(`[System] Switched to relay node: ${id}`);
+
+    // If we switch node, we might want to re-connect
+    if (!vpnOverlay.classList.contains('hidden')) {
+        // Overlay is visible, keep it that way
+    } else {
+        // Already connected, maybe show a warning that node changed
+        showToast('Node dirubah. Klik Test Jalur di Pengaturan jika AI tidak merespon.', 'info');
+    }
 }
 
 window.deleteNode = (e, id) => {
@@ -470,6 +490,11 @@ async function sendTextMessage() {
     const text = textInput.value.trim();
     if (!text) return;
 
+    if (!vpnOverlay.classList.contains('hidden')) {
+        showToast('Hubungkan VPN terlebih dahulu!', 'error');
+        return;
+    }
+
     appendMessage('User', text);
     textInput.value = '';
     textInput.disabled = true;
@@ -515,6 +540,58 @@ async function sendTextMessage() {
         textInput.focus();
     }
 }
+
+// VPN Connection Logic
+async function connectVPN() {
+    const activeNode = relayNodes.find(n => n.id === activeNodeId);
+    const proxyUrl = activeNode ? activeNode.url : '';
+
+    if (!proxyUrl) {
+        showToast('Node tidak ditemukan', 'error');
+        return;
+    }
+
+    connectVpnBtn.disabled = true;
+    connectVpnBtn.innerHTML = '<i class="fas fa-circle-notch animate-spin"></i> MENGHUBUNGKAN...';
+    logDebug(`[VPN] Attempting connection to ${activeNode.name}...`);
+
+    try {
+        const res = await fetch('/api/proxy-test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ proxyUrl })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            const loc = data.location;
+            const coloMap = { 'SIN': 'Singapore', 'HKG': 'Hong Kong', 'NRT': 'Tokyo', 'SJC': 'San Jose', 'LAX': 'Los Angeles', 'CGK': 'Jakarta' };
+            const city = coloMap[loc.colo] || loc.colo;
+            const locMsg = loc.colo !== 'N/A' ? ` [${city}, ${loc.country}]` : '';
+
+            showToast(`VPN Terhubung! ${locMsg}`, 'success');
+            logDebug(`[VPN] Connected. Egress IP: ${loc.ip}`);
+
+            // Unlock UI
+            vpnOverlay.classList.add('hidden');
+            inputArea.classList.remove('opacity-50', 'pointer-events-none');
+            updateStatus('VPN Terhubung', 'bg-green-500');
+
+            appendMessage('System', `Terhubung ke jalur VPN ${activeNode.name}${locMsg}. Neural Engine siap.`);
+        } else {
+            showToast(`Gagal: ${data.error}`, 'error');
+            logDebug(`[VPN] Connection failed: ${data.error}`);
+        }
+    } catch (e) {
+        showToast('Kesalahan Jaringan / Timeout', 'error');
+        logDebug(`[VPN] Network error during connection`);
+    } finally {
+        connectVpnBtn.disabled = false;
+        connectVpnBtn.innerHTML = '<i class="fas fa-plug"></i> HUBUNGKAN VLESS VPN';
+    }
+}
+
+connectVpnBtn.addEventListener('click', connectVPN);
 
 // Event Listeners
 sendBtn.addEventListener('click', sendTextMessage);
