@@ -94,21 +94,46 @@ async function loadSettings() {
 
         // Initial Nodes
         const defaultNode = { id: 'default', name: '⚡ Direct (Standard IP)', url: 'https://generativelanguage.googleapis.com' };
-        relayNodes = [defaultNode];
 
-        // Load Active Proxy
+        // Load Proxy Config from R2
         const proxyRes = await fetch('/api/proxy-config');
         const proxyData = await proxyRes.json();
+
+        if (proxyData.nodes && proxyData.nodes.length > 0) {
+            relayNodes = proxyData.nodes;
+            // Ensure default node is always present
+            if (!relayNodes.find(n => n.id === 'default')) {
+                relayNodes.unshift(defaultNode);
+            }
+        } else {
+            relayNodes = [defaultNode];
+        }
+
         if (proxyData.activeNodeId) {
             activeNodeId = proxyData.activeNodeId;
-            // Ensure active node exists in list or add it
-            if (!relayNodes.find(n => n.id === activeNodeId) && proxyData.activeNodeUrl) {
-                relayNodes.push({ id: activeNodeId, name: 'Saved Node', url: proxyData.activeNodeUrl });
-            }
         }
         renderNodeList();
     } catch (e) {
         logDebug('[Error] Gagal memuat pengaturan');
+    }
+}
+
+async function saveProxyConfig() {
+    const activeNode = relayNodes.find(n => n.id === activeNodeId);
+    try {
+        await fetch('/api/proxy-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                activeNodeId: activeNodeId,
+                activeNodeUrl: activeNode ? (activeNode.url || `http://${activeNode.address}:${activeNode.port}`) : 'https://generativelanguage.googleapis.com',
+                nodes: relayNodes
+            })
+        });
+        logDebug('[System] Proxy configuration saved to R2');
+    } catch (e) {
+        logDebug('[Error] Gagal menyimpan konfigurasi proxy');
+        showToast('Gagal menyimpan perubahan ke cloud', 'error');
     }
 }
 
@@ -172,6 +197,7 @@ function renderNodeList() {
 function selectNode(id) {
     activeNodeId = id;
     renderNodeList();
+    saveProxyConfig(); // Persist selection
     const node = relayNodes.find(n => n.id === id);
     if (node && selectedNodeDisplay) {
         selectedNodeDisplay.innerText = node.name;
@@ -192,6 +218,7 @@ window.deleteNode = (e, id) => {
     if (activeNodeId === id) activeNodeId = 'default';
     relayNodes = relayNodes.filter(n => n.id !== id);
     renderNodeList();
+    saveProxyConfig(); // Auto-save to R2
 };
 
 function showSetup(isUpdate = false) {
@@ -292,6 +319,7 @@ saveNodeBtn.addEventListener('click', () => {
     vlessImportInput.value = '';
     nodeEditor.classList.add('hidden');
     renderNodeList();
+    saveProxyConfig(); // Auto-save to R2
     showToast('Akun VLESS berhasil di-import', 'success');
 });
 
