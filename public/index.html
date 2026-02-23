@@ -92,6 +92,26 @@
                     <p>Key Anda disimpan dengan aman di VPSAI Cloudflare R2 dan tidak akan pernah dibagikan.</p>
                 </div>
 
+                <!-- Network & Proxy Section -->
+                <div id="proxy-settings" class="hidden mt-8 pt-8 border-t border-white/5 space-y-5 animate-fade-in">
+                    <div>
+                        <h3 class="text-lg font-bold text-premium-600 mb-1">Network & Proxy</h3>
+                        <p class="text-[10px] text-gray-500 leading-relaxed uppercase tracking-wider">Arahkan lalu lintas AI melalui server luar negeri (e.g. Singapura).</p>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-[10px] uppercase tracking-widest text-gray-600 font-bold ml-1">AI Gateway / Proxy URL</label>
+                        <div class="relative">
+                            <input type="text" id="proxy-url-input" placeholder="https://generativelanguage.googleapis.com"
+                                   class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-[11px] font-mono text-gray-400 focus:outline-none focus:border-premium-600">
+                        </div>
+                        <div class="flex gap-2 mt-2">
+                            <button onclick="setProxyPreset('https://generativelanguage.googleapis.com')" class="px-3 py-1 bg-white/5 border border-white/5 rounded-lg text-[9px] text-gray-500 hover:text-white transition-all">Default</button>
+                            <button onclick="setProxyPreset('https://sg.gemini-proxy.com')" class="px-3 py-1 bg-white/5 border border-white/5 rounded-lg text-[9px] text-gray-500 hover:text-white transition-all">Singapore</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Client Integration Section -->
                 <div id="client-integration" class="hidden mt-8 pt-8 border-t border-white/5 space-y-5 animate-fade-in">
                     <div>

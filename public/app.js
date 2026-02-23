@@ -14,6 +14,8 @@ const apiKeyInput = document.getElementById('api-key-input');
 const saveKeyBtn = document.getElementById('save-key-btn');
 const settingsBtn = document.getElementById('settings-btn');
 const cancelSetupBtn = document.getElementById('cancel-setup-btn');
+const proxySettingsSection = document.getElementById('proxy-settings');
+const proxyUrlInput = document.getElementById('proxy-url-input');
 const clientIntegrationSection = document.getElementById('client-integration');
 const clientEndpointUrl = document.getElementById('client-endpoint-url');
 const clientApiKeyInput = document.getElementById('client-api-key');
@@ -56,14 +58,19 @@ async function init() {
     }
 }
 
-async function loadClientConfig() {
+async function loadSettings() {
     try {
         const res = await fetch('/api/client-config');
         const data = await res.json();
         clientEndpointUrl.value = data.endpoint;
         clientApiKeyInput.value = data.clientKey || 'Belum di-generate';
+
+        // Load Proxy
+        const proxyRes = await fetch('/api/proxy-config');
+        const proxyData = await proxyRes.json();
+        proxyUrlInput.value = proxyData.proxyUrl || '';
     } catch (e) {
-        logDebug('[Error] Gagal memuat konfigurasi klien');
+        logDebug('[Error] Gagal memuat pengaturan');
     }
 }
 
@@ -75,12 +82,14 @@ function showSetup(isUpdate = false) {
     if (isUpdate) {
         cancelSetupBtn.classList.remove('hidden');
         clientIntegrationSection.classList.remove('hidden');
-        document.querySelector('#setup-container h2').innerText = 'Perbarui API Key';
+        proxySettingsSection.classList.remove('hidden');
+        document.querySelector('#setup-container h2').innerText = 'Perbarui Pengaturan';
         saveKeyBtn.innerText = 'Simpan Perubahan';
-        loadClientConfig();
+        loadSettings();
     } else {
         cancelSetupBtn.classList.add('hidden');
         clientIntegrationSection.classList.add('hidden');
+        proxySettingsSection.classList.add('hidden');
         document.querySelector('#setup-container h2').innerText = 'Konfigurasi AI';
         saveKeyBtn.innerText = 'Aktifkan Sekarang';
     }
@@ -105,24 +114,41 @@ function logDebug(msg) {
     debugLogs.scrollTop = debugLogs.scrollHeight;
 }
 
-// Save Key
+// Save Settings
 saveKeyBtn.addEventListener('click', async () => {
     const key = apiKeyInput.value.trim();
-    if (!key) return;
+    const proxyUrl = proxyUrlInput.value.trim();
+
+    // Only require key on initial setup
+    const isUpdate = !cancelSetupBtn.classList.contains('hidden');
+    if (!key && !isUpdate) {
+        alert('API Key diperlukan untuk aktivasi pertama kali.');
+        return;
+    }
 
     saveKeyBtn.disabled = true;
     try {
-        const response = await fetch(API_SAVE_URL, {
+        // Save Key if provided
+        if (key) {
+            await fetch(API_SAVE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key })
+            });
+        }
+
+        // Save Proxy
+        await fetch('/api/proxy-config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ key })
+            body: JSON.stringify({ proxyUrl })
         });
-        if (!response.ok) throw new Error('Failed to save');
+
         apiKeyInput.value = '';
         showMainInterface();
-        logDebug('[System] API Key updated successfully');
+        logDebug('[System] Settings updated successfully');
     } catch (e) {
-        alert('Gagal menyimpan key');
+        alert('Gagal menyimpan pengaturan');
     } finally {
         saveKeyBtn.disabled = false;
     }
@@ -148,12 +174,17 @@ rotateClientKeyBtn.addEventListener('click', async () => {
     }
 });
 
-// Helper for Copy
+// Helper for Copy & Presets
 window.copyToClipboard = (id) => {
     const el = document.getElementById(id);
     el.select();
     document.execCommand('copy');
     logDebug(`[System] Copied ${id} to clipboard`);
+};
+
+window.setProxyPreset = (url) => {
+    proxyUrlInput.value = url;
+    logDebug(`[System] Proxy preset set to ${url}`);
 };
 
 // TTS and Voice Logic

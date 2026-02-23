@@ -40,7 +40,20 @@ async function handleChat(c: any, contents: any, systemInstruction: any) {
     }
     const apiKey = await obj.text()
 
-    const genAI = new GoogleGenAI({ apiKey })
+    // Read Proxy Config
+    let baseUrl: string | undefined = undefined
+    const proxyObj = await c.env.R2.get('config/proxy_config.json')
+    if (proxyObj) {
+      const proxyData = await proxyObj.json() as any
+      if (proxyData.proxyUrl) {
+        baseUrl = proxyData.proxyUrl
+      }
+    }
+
+    const genAI = new GoogleGenAI({
+      apiKey,
+      baseUrl: baseUrl // Will use default if undefined
+    })
     const response = await genAI.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: contents,
@@ -90,6 +103,19 @@ app.post('/api/client-config/rotate', async (c) => {
   const newKey = crypto.randomUUID()
   await c.env.R2.put('config/client_key.txt', newKey)
   return c.json({ clientKey: newKey })
+})
+
+// Proxy Config Endpoints
+app.get('/api/proxy-config', async (c) => {
+  const obj = await c.env.R2.get('config/proxy_config.json')
+  const data = obj ? await obj.json() : {}
+  return c.json(data)
+})
+
+app.post('/api/proxy-config', async (c) => {
+  const data = await c.req.json()
+  await c.env.R2.put('config/proxy_config.json', JSON.stringify(data))
+  return c.json({ success: true })
 })
 
 // Serving static files
