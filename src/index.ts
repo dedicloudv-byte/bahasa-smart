@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { serveStatic } from 'hono/cloudflare-workers'
 import { cors } from 'hono/cors'
-import { GoogleGenerativeAI } from "@google/generative-ai"
+import { GoogleGenAI } from "@google/genai"
 import { proxyFetch } from '@dividenconquer/cloudflare-proxy-fetch'
 import { connect } from "cloudflare:sockets";
 
@@ -82,30 +82,33 @@ async function handleChat(c: any, contents: any, systemInstruction: any) {
       }
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
-      systemInstruction: systemInstruction.parts[0].text
-    }, {
-      baseUrl: baseUrl,
-      apiVersion: 'v1beta',
+    const ai = new GoogleGenAI({
+        apiKey: apiKey,
     });
 
-    // Handle Proxy Routing logic
+    // Handle Proxy Routing logic with Retries
     const customFetch = async (url: string | URL | Request, init?: RequestInit) => {
         if (vlessChain) {
             const proxies = await getProxyBank();
-            // Filter out ports 80 and 443 as they are restricted for raw sockets in Workers
             const validProxies = proxies.filter(p => p.port !== 80 && p.port !== 443);
-            if (validProxies.length > 0) {
+
+            // Try up to 3 different proxies if we get a 400 error
+            for (let i = 0; i < 3; i++) {
+                if (validProxies.length === 0) break;
                 const p = validProxies[Math.floor(Math.random() * validProxies.length)];
-                return proxyFetch(url, { ...init, proxy: `http://${p.ip}:${p.port}` });
+                try {
+                    const res = await proxyFetch(url, { ...init, proxy: `http://${p.ip}:${p.port}` });
+                    if (res.status !== 400) return res;
+                    console.log(`Proxy ${p.ip}:${p.port} returned 400, retrying...`);
+                } catch (e) {
+                    console.log(`Proxy ${p.ip}:${p.port} failed, retrying...`);
+                }
             }
         }
+
         if (baseUrl && !baseUrl.toString().includes('googleapis.com')) {
             try {
                 const bUrl = new URL(baseUrl.toString());
-                // Only use proxyFetch if port is not restricted
                 if (bUrl.port !== '80' && bUrl.port !== '443') {
                     return proxyFetch(url, { ...init, proxy: baseUrl.toString() });
                 }
@@ -114,26 +117,29 @@ async function handleChat(c: any, contents: any, systemInstruction: any) {
         return fetch(url, init);
     };
 
-    const chat = model.startChat({
-        history: contents.slice(0, -1)
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+    const body = {
+        contents,
+        systemInstruction: {
+            parts: systemInstruction.parts
+        }
+    };
+
+    const res = await customFetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
     });
 
-    if (vlessChain || (baseUrl && !baseUrl.toString().includes('googleapis.com'))) {
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-        const body = { contents, systemInstruction };
-        const res = await customFetch(geminiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
-        const data: any = await res.json();
-        if (data.error) throw new Error(data.error.message);
-        return c.json({ text: data.candidates[0].content.parts[0].text });
+    const data: any = await res.json();
+    if (data.error) throw new Error(data.error.message);
+
+    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+        console.error('Invalid Gemini Response:', data);
+        throw new Error('Invalid response from Gemini AI');
     }
 
-    const result = await model.generateContent({ contents });
-    const response = await result.response;
-    return c.json({ text: response.text() })
+    return c.json({ text: data.candidates[0].content.parts[0].text });
   } catch (e: any) {
     console.error('Gemini API Error:', e)
     // If it's an API error, it might have more details
