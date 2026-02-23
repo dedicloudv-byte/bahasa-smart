@@ -27,6 +27,8 @@ const clientIntegrationSection = document.getElementById('client-integration');
 const clientEndpointUrl = document.getElementById('client-endpoint-url');
 const clientApiKeyInput = document.getElementById('client-api-key');
 const rotateClientKeyBtn = document.getElementById('rotate-client-key-btn');
+const vpnConfigSection = document.getElementById('vpn-config-section');
+const vlessConfigUrl = document.getElementById('vless-config-url');
 const chatBox = document.getElementById('chat-box');
 const debugLogs = document.getElementById('debug-logs');
 const textInput = document.getElementById('text-input');
@@ -77,6 +79,11 @@ async function loadSettings() {
         const data = await res.json();
         clientEndpointUrl.value = data.endpoint;
         clientApiKeyInput.value = data.clientKey || 'Belum di-generate';
+
+        // Generate VPN Config
+        const hostname = window.location.hostname || 'your-worker.workers.dev';
+        const uuid = '00000000-0000-0000-0000-000000000000';
+        vlessConfigUrl.value = `vless://${uuid}@${hostname}:443?encryption=none&security=tls&type=ws&host=${hostname}&path=%2F#BAHASA-SMART-VPN`;
 
         // Load Proxy Bank
         const bankRes = await fetch('/api/proxy-bank');
@@ -163,6 +170,7 @@ function showSetup(isUpdate = false) {
         cancelSetupBtn.classList.remove('hidden');
         clientIntegrationSection.classList.remove('hidden');
         proxySettingsSection.classList.remove('hidden');
+        vpnConfigSection.classList.remove('hidden');
         document.querySelector('#setup-container h2').innerText = 'Perbarui Pengaturan';
         saveKeyBtn.innerText = 'Simpan Perubahan';
         loadSettings();
