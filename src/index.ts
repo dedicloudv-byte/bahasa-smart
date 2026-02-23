@@ -2,12 +2,27 @@ import { Hono } from 'hono'
 import { serveStatic } from 'hono/cloudflare-workers'
 import { cors } from 'hono/cors'
 import { GoogleGenAI } from "@google/genai"
+import { proxyFetch } from '@dividenconquer/cloudflare-proxy-fetch'
 
 type Bindings = {
   R2: R2Bucket
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
+
+const PRX_BANK_URL = "https://raw.githubusercontent.com/FoolVPN-ID/Nautica/refs/heads/main/proxyList.txt";
+
+async function getProxyBank() {
+  const res = await fetch(PRX_BANK_URL);
+  if (!res.ok) return [];
+  const text = await res.text();
+  return text.split('\n')
+    .filter(line => line.trim())
+    .map(line => {
+      const [ip, port, country, org] = line.split(',');
+      return { ip, port: parseInt(port), country, org };
+    });
+}
 
 // Enable CORS for External API
 app.use('/api/v1/*', cors())
@@ -57,7 +72,20 @@ async function handleChat(c: any, contents: any, systemInstruction: any) {
     const ai = new GoogleGenAI({
       apiKey,
       httpOptions: {
-        baseUrl: baseUrl // Dynamically set from R2
+        baseUrl: baseUrl, // Dynamically set from R2
+        fetch: (url: any, init: any) => {
+            if (baseUrl && !baseUrl.includes('googleapis.com')) {
+                // If using a relay node, we might want to route through it.
+                // But if baseUrl IS the proxy gateway, we just fetch it.
+                // If the user meant using the IPs from proxyList.txt as EGRESS PROXIES:
+                // Then we should use proxyFetch with those IPs.
+
+                // Let's assume if baseUrl is just an IP:Port or a non-google URL,
+                // we treat it as a proxy.
+                return proxyFetch(url, { ...init, proxy: baseUrl });
+            }
+            return fetch(url, init);
+        }
       }
     })
 
@@ -116,6 +144,15 @@ app.post('/api/client-config/rotate', async (c) => {
 })
 
 // Proxy Config Endpoints
+app.get('/api/proxy-bank', async (c) => {
+    try {
+        const proxies = await getProxyBank();
+        return c.json(proxies);
+    } catch (e) {
+        return c.json({ error: 'Failed to fetch proxy bank' }, 500);
+    }
+});
+
 app.get('/api/proxy-config', async (c) => {
   const obj = await c.env.R2.get('config/proxy_config.json')
   const data = obj ? await obj.json() : {}
@@ -127,22 +164,16 @@ app.post('/api/proxy-test', async (c) => {
   try {
     const start = Date.now();
     const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), 8000);
-
-    // We try to fetch IP info through the proxy
-    // If proxyUrl is default, we fetch directly
-    const targetUrl = proxyUrl.includes('googleapis.com') ? 'https://ipapi.co/json/' : proxyUrl + '/check-ip'; // Some proxies have check-ip, or just use a known geo service
-
-    // For general purpose, let's use a public API through the proxy
-    // Note: This requires the proxy to allow requests to other domains if it's a generic proxy
-    // If it's a Gemini-only gateway, this might fail, so we fallback to a simple HEAD request to the proxy itself
+    const id = setTimeout(() => controller.abort(), 12000);
 
     let locationData = { city: 'N/A', country: 'N/A', ip: 'N/A', colo: 'N/A' };
 
-    // Check if it's a Cloudflare-based proxy by trying /cdn-cgi/trace
+    // Try to fetch trace through the proxy using proxyFetch
     try {
-        const traceUrl = proxyUrl.endsWith('/') ? proxyUrl + 'cdn-cgi/trace' : proxyUrl + '/cdn-cgi/trace';
-        const traceRes = await fetch(traceUrl, { signal: controller.signal });
+        const traceRes = await proxyFetch('https://www.cloudflare.com/cdn-cgi/trace', {
+            proxy: proxyUrl,
+            signal: controller.signal
+        });
         if (traceRes.ok) {
             const text = await traceRes.text();
             const lines = text.split('\n');
@@ -155,25 +186,29 @@ app.post('/api/proxy-test', async (c) => {
             locationData.colo = data.colo || 'N/A';
             locationData.country = data.loc || 'N/A';
         }
-    } catch (e) {}
+    } catch (e: any) {
+        console.error('Trace via proxy failed:', e.message);
+    }
 
-    const response = await fetch(proxyUrl, {
-      method: 'GET',
-      signal: controller.signal
+    // Also check if the proxy can reach Gemini
+    const geminiRes = await proxyFetch('https://generativelanguage.googleapis.com', {
+        proxy: proxyUrl,
+        signal: controller.signal
     });
+
     clearTimeout(id);
 
     const latency = Date.now() - start;
     return c.json({
       success: true,
-      status: response.status,
+      status: geminiRes.status,
       latency: `${latency}ms`,
       location: locationData
     });
   } catch (err: any) {
     return c.json({
       success: false,
-      error: err.name === 'AbortError' ? 'Connection Timeout (8s)' : (err.message || 'Connection failed')
+      error: err.name === 'AbortError' ? 'Connection Timeout (12s)' : (err.message || 'Proxy Connection failed')
     }, 500);
   }
 });

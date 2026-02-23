@@ -78,17 +78,45 @@ async function loadSettings() {
         clientEndpointUrl.value = data.endpoint;
         clientApiKeyInput.value = data.clientKey || 'Belum di-generate';
 
-        // Load Proxy
+        // Load Proxy Bank
+        const bankRes = await fetch('/api/proxy-bank');
+        const bankData = await bankRes.json();
+        if (bankData && bankData.length > 0) {
+            // Map bank to relay nodes
+            const bankNodes = bankData.slice(0, 50).map((p, i) => ({
+                id: `bank-${i}`,
+                name: `${getFlagEmoji(p.country)} ${p.country} - ${p.org.split(' ')[0]}`,
+                url: `http://${p.ip}:${p.port}`
+            }));
+
+            // Merge with default and saved nodes
+            const defaultNode = { id: 'default', name: '⚡ Direct (Standard IP)', url: 'https://generativelanguage.googleapis.com' };
+            relayNodes = [defaultNode, ...bankNodes];
+        }
+
+        // Load Active Proxy
         const proxyRes = await fetch('/api/proxy-config');
         const proxyData = await proxyRes.json();
-        if (proxyData.nodes && proxyData.nodes.length > 0) {
-            relayNodes = proxyData.nodes;
-            activeNodeId = proxyData.activeNodeId || relayNodes[0].id;
+        if (proxyData.activeNodeId) {
+            activeNodeId = proxyData.activeNodeId;
+            // Ensure active node exists in list or add it
+            if (!relayNodes.find(n => n.id === activeNodeId) && proxyData.activeNodeUrl) {
+                relayNodes.push({ id: activeNodeId, name: 'Saved Node', url: proxyData.activeNodeUrl });
+            }
         }
         renderNodeList();
     } catch (e) {
         logDebug('[Error] Gagal memuat pengaturan');
     }
+}
+
+function getFlagEmoji(isoCode) {
+    if (!isoCode || isoCode === 'Unknown') return '🌐';
+    const codePoints = isoCode
+      .toUpperCase()
+      .split("")
+      .map((char) => 127397 + char.charCodeAt(0));
+    return String.fromCodePoint(...codePoints);
 }
 
 function renderNodeList() {
