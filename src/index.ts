@@ -45,7 +45,11 @@ async function handleChat(c: any, contents: any, systemInstruction: any) {
     const proxyObj = await c.env.R2.get('config/proxy_config.json')
     if (proxyObj) {
       const proxyData = await proxyObj.json() as any
-      if (proxyData.proxyUrl) {
+      // New format: { activeNodeUrl: '...', nodes: [...] }
+      if (proxyData.activeNodeUrl) {
+        baseUrl = proxyData.activeNodeUrl
+      } else if (proxyData.proxyUrl) {
+        // Fallback for old format
         baseUrl = proxyData.proxyUrl
       }
     }
@@ -125,6 +129,34 @@ app.post('/api/proxy-test', async (c) => {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), 8000);
 
+    // We try to fetch IP info through the proxy
+    // If proxyUrl is default, we fetch directly
+    const targetUrl = proxyUrl.includes('googleapis.com') ? 'https://ipapi.co/json/' : proxyUrl + '/check-ip'; // Some proxies have check-ip, or just use a known geo service
+
+    // For general purpose, let's use a public API through the proxy
+    // Note: This requires the proxy to allow requests to other domains if it's a generic proxy
+    // If it's a Gemini-only gateway, this might fail, so we fallback to a simple HEAD request to the proxy itself
+
+    let locationData = { city: 'N/A', country: 'N/A', ip: 'N/A', colo: 'N/A' };
+
+    // Check if it's a Cloudflare-based proxy by trying /cdn-cgi/trace
+    try {
+        const traceUrl = proxyUrl.endsWith('/') ? proxyUrl + 'cdn-cgi/trace' : proxyUrl + '/cdn-cgi/trace';
+        const traceRes = await fetch(traceUrl, { signal: controller.signal });
+        if (traceRes.ok) {
+            const text = await traceRes.text();
+            const lines = text.split('\n');
+            const data: any = {};
+            lines.forEach(line => {
+                const [k, v] = line.split('=');
+                if (k && v) data[k] = v;
+            });
+            locationData.ip = data.ip || 'N/A';
+            locationData.colo = data.colo || 'N/A';
+            locationData.country = data.loc || 'N/A';
+        }
+    } catch (e) {}
+
     const response = await fetch(proxyUrl, {
       method: 'GET',
       signal: controller.signal
@@ -135,7 +167,8 @@ app.post('/api/proxy-test', async (c) => {
     return c.json({
       success: true,
       status: response.status,
-      latency: `${latency}ms`
+      latency: `${latency}ms`,
+      location: locationData
     });
   } catch (err: any) {
     return c.json({

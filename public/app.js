@@ -16,7 +16,13 @@ const testProxyBtn = document.getElementById('test-proxy-btn');
 const settingsBtn = document.getElementById('settings-btn');
 const cancelSetupBtn = document.getElementById('cancel-setup-btn');
 const proxySettingsSection = document.getElementById('proxy-settings');
-const proxyUrlInput = document.getElementById('proxy-url-input');
+const nodeList = document.getElementById('node-list');
+const nodeEditor = document.getElementById('node-editor');
+const addNodeBtn = document.getElementById('add-node-btn');
+const nodeNameInput = document.getElementById('node-name-input');
+const nodeUrlInput = document.getElementById('node-url-input');
+const saveNodeBtn = document.getElementById('save-node-btn');
+const cancelNodeBtn = document.getElementById('cancel-node-btn');
 const clientIntegrationSection = document.getElementById('client-integration');
 const clientEndpointUrl = document.getElementById('client-endpoint-url');
 const clientApiKeyInput = document.getElementById('client-api-key');
@@ -34,6 +40,12 @@ const ttsIcon = document.getElementById('tts-icon');
 let apiKey = null;
 let ttsEnabled = true;
 let chatHistory = [];
+let relayNodes = [
+    { id: 'default', name: 'Direct (Google HQ)', url: 'https://generativelanguage.googleapis.com' },
+    { id: 'sg-node', name: 'Singapore Node', url: 'https://sg.gemini-proxy.com' },
+    { id: 'us-node', name: 'USA Node', url: 'https://us.gemini-proxy.com' }
+];
+let activeNodeId = 'default';
 const SYSTEM_INSTRUCTION = "Anda adalah BAHASA SMART, asisten edukasi belajar bahasa yang interaktif dan premium. " +
     "Tugas Anda adalah membantu pengguna belajar bahasa apa pun melalui percakapan teks. " +
     "ATURAN FORMATING: " +
@@ -69,11 +81,50 @@ async function loadSettings() {
         // Load Proxy
         const proxyRes = await fetch('/api/proxy-config');
         const proxyData = await proxyRes.json();
-        proxyUrlInput.value = proxyData.proxyUrl || '';
+        if (proxyData.nodes && proxyData.nodes.length > 0) {
+            relayNodes = proxyData.nodes;
+            activeNodeId = proxyData.activeNodeId || relayNodes[0].id;
+        }
+        renderNodeList();
     } catch (e) {
         logDebug('[Error] Gagal memuat pengaturan');
     }
 }
+
+function renderNodeList() {
+    nodeList.innerHTML = '';
+    relayNodes.forEach(node => {
+        const isActive = node.id === activeNodeId;
+        const div = document.createElement('div');
+        div.className = `flex justify-between items-center p-3 rounded-xl border transition-all cursor-pointer ${isActive ? 'bg-premium-600/10 border-premium-600/30' : 'bg-black/20 border-white/5 hover:border-white/10'}`;
+        div.onclick = () => selectNode(node.id);
+
+        div.innerHTML = `
+            <div class="flex items-center gap-3">
+                <div class="w-2 h-2 rounded-full ${isActive ? 'bg-premium-600 animate-pulse' : 'bg-gray-700'}"></div>
+                <div>
+                    <p class="text-[11px] font-bold ${isActive ? 'text-white' : 'text-gray-400'}">${node.name}</p>
+                    <p class="text-[9px] text-gray-600 font-mono">${node.url}</p>
+                </div>
+            </div>
+            ${node.id !== 'default' ? `<button onclick="deleteNode(event, '${node.id}')" class="text-gray-600 hover:text-red-500 p-1"><i class="fas fa-times-circle text-[10px]"></i></button>` : ''}
+        `;
+        nodeList.appendChild(div);
+    });
+}
+
+function selectNode(id) {
+    activeNodeId = id;
+    renderNodeList();
+    logDebug(`[System] Switched to relay node: ${id}`);
+}
+
+window.deleteNode = (e, id) => {
+    e.stopPropagation();
+    if (activeNodeId === id) activeNodeId = 'default';
+    relayNodes = relayNodes.filter(n => n.id !== id);
+    renderNodeList();
+};
 
 function showSetup(isUpdate = false) {
     loadingSpinner.classList.add('hidden');
@@ -139,10 +190,42 @@ function logDebug(msg) {
     debugLogs.scrollTop = debugLogs.scrollHeight;
 }
 
+// Node Editor
+addNodeBtn.addEventListener('click', () => {
+    nodeEditor.classList.toggle('hidden');
+});
+
+cancelNodeBtn.addEventListener('click', () => {
+    nodeEditor.classList.add('hidden');
+});
+
+saveNodeBtn.addEventListener('click', () => {
+    const name = nodeNameInput.value.trim();
+    const url = nodeUrlInput.value.trim();
+
+    if (!name || !url) {
+        showToast('Nama dan URL Node diperlukan', 'error');
+        return;
+    }
+
+    const newNode = {
+        id: 'node-' + Date.now(),
+        name,
+        url
+    };
+
+    relayNodes.push(newNode);
+    nodeNameInput.value = '';
+    nodeUrlInput.value = '';
+    nodeEditor.classList.add('hidden');
+    renderNodeList();
+    showToast('Node berhasil ditambahkan', 'success');
+});
+
 // Save Settings
 saveKeyBtn.addEventListener('click', async () => {
     const key = apiKeyInput.value.trim();
-    const proxyUrl = proxyUrlInput.value.trim();
+    const activeNode = relayNodes.find(n => n.id === activeNodeId);
 
     // Only require key on initial setup
     const isUpdate = !cancelSetupBtn.classList.contains('hidden');
@@ -166,7 +249,11 @@ saveKeyBtn.addEventListener('click', async () => {
         await fetch('/api/proxy-config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ proxyUrl })
+            body: JSON.stringify({
+                activeNodeId: activeNodeId,
+                activeNodeUrl: activeNode ? activeNode.url : 'https://generativelanguage.googleapis.com',
+                nodes: relayNodes
+            })
         });
 
         apiKeyInput.value = '';
@@ -184,9 +271,11 @@ settingsBtn.addEventListener('click', () => {
 });
 
 testProxyBtn.addEventListener('click', async () => {
-    const proxyUrl = proxyUrlInput.value.trim();
+    const activeNode = relayNodes.find(n => n.id === activeNodeId);
+    const proxyUrl = activeNode ? activeNode.url : '';
+
     if (!proxyUrl) {
-        showToast('URL Proxy tidak boleh kosong', 'error');
+        showToast('Node tidak ditemukan', 'error');
         return;
     }
 
@@ -202,7 +291,12 @@ testProxyBtn.addEventListener('click', async () => {
         const data = await res.json();
 
         if (data.success) {
-            showToast(`Koneksi Berhasil! Latency: ${data.latency}`, 'success');
+            const loc = data.location;
+            const coloMap = { 'SIN': 'Singapore', 'HKG': 'Hong Kong', 'NRT': 'Tokyo', 'SJC': 'San Jose', 'LAX': 'Los Angeles', 'CGK': 'Jakarta' };
+            const city = coloMap[loc.colo] || loc.colo;
+            const locMsg = loc.colo !== 'N/A' ? ` [${city}, ${loc.country}]` : '';
+            showToast(`Koneksi Berhasil! Latency: ${data.latency}${locMsg}`, 'success');
+            logDebug(`[Proxy] Connected via ${proxyUrl}. Latency: ${data.latency}. DC: ${loc.colo}. IP: ${loc.ip}`);
         } else {
             showToast(`Gagal: ${data.error}`, 'error');
         }
@@ -210,7 +304,7 @@ testProxyBtn.addEventListener('click', async () => {
         showToast('Kesalahan Jaringan / Timeout', 'error');
     } finally {
         testProxyBtn.disabled = false;
-        testProxyBtn.innerHTML = '<i class="fas fa-plug text-[8px]"></i> CEK KONEKSI';
+        testProxyBtn.innerHTML = '<i class="fas fa-satellite-dish animate-pulse"></i> TEST JALUR KONEKSI';
     }
 });
 
