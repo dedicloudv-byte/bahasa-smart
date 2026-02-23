@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { serveStatic } from 'hono/cloudflare-workers'
 import { cors } from 'hono/cors'
-import { GoogleGenerativeAI } from "@google/generative-ai"
+import { GoogleGenAI } from "@google/genai"
 
 type Bindings = {
   R2: R2Bucket
@@ -50,29 +50,27 @@ async function handleChat(c: any, contents: any, systemInstruction: any) {
       }
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey)
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        baseUrl: baseUrl // Dynamically set from R2
+      }
+    })
 
-    // Use gemini-1.5-flash which is stable and widely available
-    const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
-      systemInstruction: systemInstruction?.parts?.[0]?.text
-    }, { baseUrl })
+    // Using the requested new model and SDK syntax
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: contents,
+      config: {
+        systemInstruction: systemInstruction
+      }
+    })
 
-    const chat = model.startChat({
-        history: contents.slice(0, -1).map((m: any) => ({
-            role: m.role === 'model' ? 'model' : 'user',
-            parts: m.parts
-        })),
-    });
-
-    const lastMsg = contents[contents.length - 1].parts[0].text;
-    const result = await chat.sendMessage(lastMsg);
-    const response = await result.response;
-    const text = response.text();
-
-    return c.json({ text: text })
+    // In @google/genai, the response text is accessed via the .text getter
+    return c.json({ text: response.text })
   } catch (e: any) {
     console.error('Gemini API Error:', e)
+    // If it's an API error, it might have more details
     return c.json({ error: e.message || 'Failed to generate content' }, 500)
   }
 }
@@ -127,7 +125,6 @@ app.post('/api/proxy-test', async (c) => {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), 8000);
 
-    // Append a simple health check path if not present, but for generic proxy we just HEAD the base
     const response = await fetch(proxyUrl, {
       method: 'GET',
       signal: controller.signal
