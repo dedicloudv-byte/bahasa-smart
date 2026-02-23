@@ -19,8 +19,7 @@ const proxySettingsSection = document.getElementById('proxy-settings');
 const nodeList = document.getElementById('node-list');
 const nodeEditor = document.getElementById('node-editor');
 const addNodeBtn = document.getElementById('add-node-btn');
-const nodeNameInput = document.getElementById('node-name-input');
-const nodeUrlInput = document.getElementById('node-url-input');
+const vlessImportInput = document.getElementById('vless-import-input');
 const saveNodeBtn = document.getElementById('save-node-btn');
 const cancelNodeBtn = document.getElementById('cancel-node-btn');
 const clientIntegrationSection = document.getElementById('client-integration');
@@ -93,21 +92,9 @@ async function loadSettings() {
         const uuid = '00000000-0000-0000-0000-000000000000';
         vlessConfigUrl.value = `vless://${uuid}@${hostname}:443?encryption=none&security=tls&type=ws&host=${hostname}&path=%2F#BAHASA-SMART-VPN`;
 
-        // Load Proxy Bank
-        const bankRes = await fetch('/api/proxy-bank');
-        const bankData = await bankRes.json();
-        if (bankData && bankData.length > 0) {
-            // Map bank to relay nodes
-            const bankNodes = bankData.slice(0, 50).map((p, i) => ({
-                id: `bank-${i}`,
-                name: `${getFlagEmoji(p.country)} ${p.country} - ${p.org.split(' ')[0]}`,
-                url: `http://${p.ip}:${p.port}`
-            }));
-
-            // Merge with default and saved nodes
-            const defaultNode = { id: 'default', name: '⚡ Direct (Standard IP)', url: 'https://generativelanguage.googleapis.com' };
-            relayNodes = [defaultNode, ...bankNodes];
-        }
+        // Initial Nodes
+        const defaultNode = { id: 'default', name: '⚡ Direct (Standard IP)', url: 'https://generativelanguage.googleapis.com' };
+        relayNodes = [defaultNode];
 
         // Load Active Proxy
         const proxyRes = await fetch('/api/proxy-config');
@@ -134,6 +121,30 @@ function getFlagEmoji(isoCode) {
     return String.fromCodePoint(...codePoints);
 }
 
+function parseVlessUri(uri) {
+    try {
+        const url = new URL(uri);
+        const uuid = url.username;
+        const address = url.hostname;
+        const port = parseInt(url.port);
+        const params = Object.fromEntries(url.searchParams.entries());
+        const name = decodeURIComponent(url.hash.replace('#', ''));
+
+        return {
+            uuid,
+            address,
+            port,
+            path: params.path || '/',
+            host: params.host || address,
+            security: params.security || 'none',
+            type: params.type || 'ws', // Default to ws for workers
+            name: name || address
+        };
+    } catch (e) {
+        return null;
+    }
+}
+
 function renderNodeList() {
     nodeList.innerHTML = '';
     relayNodes.forEach(node => {
@@ -142,12 +153,14 @@ function renderNodeList() {
         div.className = `flex justify-between items-center p-3 rounded-xl border transition-all cursor-pointer ${isActive ? 'bg-premium-600/10 border-premium-600/30' : 'bg-black/20 border-white/5 hover:border-white/10'}`;
         div.onclick = () => selectNode(node.id);
 
+        const subText = node.address ? `${node.address}:${node.port}` : node.url;
+
         div.innerHTML = `
             <div class="flex items-center gap-3">
                 <div class="w-2 h-2 rounded-full ${isActive ? 'bg-premium-600 animate-pulse' : 'bg-gray-700'}"></div>
                 <div>
                     <p class="text-[11px] font-bold ${isActive ? 'text-white' : 'text-gray-400'}">${node.name}</p>
-                    <p class="text-[9px] text-gray-600 font-mono">${node.url}</p>
+                    <p class="text-[9px] text-gray-600 font-mono truncate max-w-[150px]">${subText}</p>
                 </div>
             </div>
             ${node.id !== 'default' ? `<button onclick="deleteNode(event, '${node.id}')" class="text-gray-600 hover:text-red-500 p-1"><i class="fas fa-times-circle text-[10px]"></i></button>` : ''}
@@ -256,26 +269,30 @@ cancelNodeBtn.addEventListener('click', () => {
 });
 
 saveNodeBtn.addEventListener('click', () => {
-    const name = nodeNameInput.value.trim();
-    const url = nodeUrlInput.value.trim();
+    const uri = vlessImportInput.value.trim();
 
-    if (!name || !url) {
-        showToast('Nama dan URL Node diperlukan', 'error');
+    if (!uri) {
+        showToast('Tolong tempel link VLESS', 'error');
+        return;
+    }
+
+    const parsed = parseVlessUri(uri);
+    if (!parsed) {
+        showToast('Format VLESS tidak valid', 'error');
         return;
     }
 
     const newNode = {
-        id: 'node-' + Date.now(),
-        name,
-        url
+        id: 'vless-' + Date.now(),
+        ...parsed,
+        vlessUri: uri // Keep original for backend
     };
 
     relayNodes.push(newNode);
-    nodeNameInput.value = '';
-    nodeUrlInput.value = '';
+    vlessImportInput.value = '';
     nodeEditor.classList.add('hidden');
     renderNodeList();
-    showToast('Node berhasil ditambahkan', 'success');
+    showToast('Akun VLESS berhasil di-import', 'success');
 });
 
 // Save Settings
@@ -544,12 +561,14 @@ async function sendTextMessage() {
 // VPN Connection Logic
 async function connectVPN() {
     const activeNode = relayNodes.find(n => n.id === activeNodeId);
-    const proxyUrl = activeNode ? activeNode.url : '';
 
-    if (!proxyUrl) {
+    if (!activeNode) {
         showToast('Node tidak ditemukan', 'error');
         return;
     }
+
+    const isVless = activeNode.id.startsWith('vless-');
+    const proxyUrl = isVless ? activeNode.address : activeNode.url;
 
     connectVpnBtn.disabled = true;
     connectVpnBtn.innerHTML = '<i class="fas fa-circle-notch animate-spin"></i> MENGHUBUNGKAN...';
@@ -559,7 +578,10 @@ async function connectVPN() {
         const res = await fetch('/api/proxy-test', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ proxyUrl })
+            body: JSON.stringify({
+                proxyUrl: isVless ? `http://${activeNode.address}:${activeNode.port}` : proxyUrl,
+                isVless: isVless
+            })
         });
         const data = await res.json();
 
