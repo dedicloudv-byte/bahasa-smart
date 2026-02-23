@@ -42,14 +42,9 @@ const ttsToggleBtn = document.getElementById('tts-toggle-btn');
 const ttsIcon = document.getElementById('tts-icon');
 
 // State
-let apiKey = null;
 let ttsEnabled = true;
 let chatHistory = [];
-let relayNodes = [
-    { id: 'default', name: 'Direct (Google HQ)', url: 'https://generativelanguage.googleapis.com' },
-    { id: 'sg-node', name: 'Singapore Node', url: 'https://sg.gemini-proxy.com' },
-    { id: 'us-node', name: 'USA Node', url: 'https://us.gemini-proxy.com' }
-];
+let relayNodes = [];
 let activeNodeId = 'default';
 const SYSTEM_INSTRUCTION = "Anda adalah BAHASA SMART, asisten edukasi belajar bahasa yang interaktif dan premium. " +
     "Tugas Anda adalah membantu pengguna belajar bahasa apa pun melalui percakapan teks. " +
@@ -135,15 +130,6 @@ async function saveProxyConfig() {
         logDebug('[Error] Gagal menyimpan konfigurasi proxy');
         showToast('Gagal menyimpan perubahan ke cloud', 'error');
     }
-}
-
-function getFlagEmoji(isoCode) {
-    if (!isoCode || isoCode === 'Unknown') return '🌐';
-    const codePoints = isoCode
-      .toUpperCase()
-      .split("")
-      .map((char) => 127397 + char.charCodeAt(0));
-    return String.fromCodePoint(...codePoints);
 }
 
 function parseVlessUri(uri) {
@@ -435,11 +421,6 @@ window.copyToClipboard = (id) => {
     el.select();
     document.execCommand('copy');
     logDebug(`[System] Copied ${id} to clipboard`);
-};
-
-window.setProxyPreset = (url) => {
-    proxyUrlInput.value = url;
-    logDebug(`[System] Proxy preset set to ${url}`);
 };
 
 // TTS and Voice Logic

@@ -1,7 +1,6 @@
 import { Hono } from 'hono'
 import { serveStatic } from 'hono/cloudflare-workers'
 import { cors } from 'hono/cors'
-import { GoogleGenAI } from "@google/genai"
 import { proxyFetch } from '@dividenconquer/cloudflare-proxy-fetch'
 import { connect } from "cloudflare:sockets";
 
@@ -82,10 +81,6 @@ async function handleChat(c: any, contents: any, systemInstruction: any) {
       }
     }
 
-    const ai = new GoogleGenAI({
-        apiKey: apiKey,
-    });
-
     // Handle Proxy Routing logic with Retries
     const customFetch = async (url: string | URL | Request, init?: RequestInit) => {
         if (vlessChain) {
@@ -99,10 +94,7 @@ async function handleChat(c: any, contents: any, systemInstruction: any) {
                 try {
                     const res = await proxyFetch(url, { ...init, proxy: `http://${p.ip}:${p.port}` });
                     if (res.status !== 400) return res;
-                    console.log(`Proxy ${p.ip}:${p.port} returned 400, retrying...`);
-                } catch (e) {
-                    console.log(`Proxy ${p.ip}:${p.port} failed, retrying...`);
-                }
+                } catch (e) {}
             }
         }
 
