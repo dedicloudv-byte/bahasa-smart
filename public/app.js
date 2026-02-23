@@ -12,6 +12,7 @@ const statusText = document.getElementById('status-text');
 const statusDot = document.getElementById('status-dot');
 const apiKeyInput = document.getElementById('api-key-input');
 const saveKeyBtn = document.getElementById('save-key-btn');
+const testProxyBtn = document.getElementById('test-proxy-btn');
 const settingsBtn = document.getElementById('settings-btn');
 const cancelSetupBtn = document.getElementById('cancel-setup-btn');
 const proxySettingsSection = document.getElementById('proxy-settings');
@@ -108,6 +109,30 @@ function updateStatus(text, colorClass) {
     logDebug(`[Status] ${text}`);
 }
 
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    const colorClass = type === 'success' ? 'border-green-500/30 bg-green-500/10 text-green-400' :
+                      type === 'error' ? 'border-red-500/30 bg-red-500/10 text-red-400' :
+                      'border-premium-600/30 bg-premium-600/10 text-premium-400';
+
+    toast.className = `px-6 py-4 rounded-2xl border backdrop-blur-md shadow-2xl flex items-center gap-3 animate-slide-up pointer-events-auto ${colorClass}`;
+    toast.innerHTML = `
+        <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
+        <span class="text-xs font-bold tracking-wide uppercase">${message}</span>
+    `;
+
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        toast.style.transition = 'all 0.5s ease';
+        setTimeout(() => toast.remove(), 500);
+    }, 4000);
+}
+
 function logDebug(msg) {
     const time = new Date().toLocaleTimeString();
     debugLogs.innerText += `\n[${time}] ${msg}`;
@@ -156,6 +181,37 @@ saveKeyBtn.addEventListener('click', async () => {
 
 settingsBtn.addEventListener('click', () => {
     showSetup(true);
+});
+
+testProxyBtn.addEventListener('click', async () => {
+    const proxyUrl = proxyUrlInput.value.trim();
+    if (!proxyUrl) {
+        showToast('URL Proxy tidak boleh kosong', 'error');
+        return;
+    }
+
+    testProxyBtn.disabled = true;
+    testProxyBtn.innerHTML = '<i class="fas fa-circle-notch animate-spin text-[8px]"></i> MENGHUBUNGKAN...';
+
+    try {
+        const res = await fetch('/api/proxy-test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ proxyUrl })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            showToast(`Koneksi Berhasil! Latency: ${data.latency}`, 'success');
+        } else {
+            showToast(`Gagal: ${data.error}`, 'error');
+        }
+    } catch (e) {
+        showToast('Kesalahan Jaringan / Timeout', 'error');
+    } finally {
+        testProxyBtn.disabled = false;
+        testProxyBtn.innerHTML = '<i class="fas fa-plug text-[8px]"></i> CEK KONEKSI';
+    }
 });
 
 cancelSetupBtn.addEventListener('click', () => {

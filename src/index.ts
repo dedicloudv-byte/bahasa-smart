@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { serveStatic } from 'hono/cloudflare-workers'
 import { cors } from 'hono/cors'
-import { GoogleGenAI } from "@google/genai"
+import { GoogleGenerativeAI } from "@google/generative-ai"
 
 type Bindings = {
   R2: R2Bucket
@@ -50,19 +50,27 @@ async function handleChat(c: any, contents: any, systemInstruction: any) {
       }
     }
 
-    const genAI = new GoogleGenAI({
-      apiKey,
-      baseUrl: baseUrl // Will use default if undefined
-    })
-    const response = await genAI.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: contents,
-      config: {
-        systemInstruction: systemInstruction
-      }
-    })
+    const genAI = new GoogleGenerativeAI(apiKey)
 
-    return c.json({ text: response.text })
+    // Use gemini-1.5-flash which is stable and widely available
+    const model = genAI.getGenerativeModel({
+      model: "gemini-1.5-flash",
+      systemInstruction: systemInstruction?.parts?.[0]?.text
+    }, { baseUrl })
+
+    const chat = model.startChat({
+        history: contents.slice(0, -1).map((m: any) => ({
+            role: m.role === 'model' ? 'model' : 'user',
+            parts: m.parts
+        })),
+    });
+
+    const lastMsg = contents[contents.length - 1].parts[0].text;
+    const result = await chat.sendMessage(lastMsg);
+    const response = await result.response;
+    const text = response.text();
+
+    return c.json({ text: text })
   } catch (e: any) {
     console.error('Gemini API Error:', e)
     return c.json({ error: e.message || 'Failed to generate content' }, 500)
@@ -111,6 +119,34 @@ app.get('/api/proxy-config', async (c) => {
   const data = obj ? await obj.json() : {}
   return c.json(data)
 })
+
+app.post('/api/proxy-test', async (c) => {
+  const { proxyUrl } = await c.req.json<{ proxyUrl: string }>();
+  try {
+    const start = Date.now();
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 8000);
+
+    // Append a simple health check path if not present, but for generic proxy we just HEAD the base
+    const response = await fetch(proxyUrl, {
+      method: 'GET',
+      signal: controller.signal
+    });
+    clearTimeout(id);
+
+    const latency = Date.now() - start;
+    return c.json({
+      success: true,
+      status: response.status,
+      latency: `${latency}ms`
+    });
+  } catch (err: any) {
+    return c.json({
+      success: false,
+      error: err.name === 'AbortError' ? 'Connection Timeout (8s)' : (err.message || 'Connection failed')
+    }, 500);
+  }
+});
 
 app.post('/api/proxy-config', async (c) => {
   const data = await c.req.json()
