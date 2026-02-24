@@ -10,6 +10,7 @@ const loadingSpinner = document.getElementById('loading-spinner');
 const statusBadge = document.getElementById('status-badge');
 const statusText = document.getElementById('status-text');
 const statusDot = document.getElementById('status-dot');
+const currentIpDisplay = document.getElementById('current-ip');
 const apiKeyInput = document.getElementById('api-key-input');
 const saveKeyBtn = document.getElementById('save-key-btn');
 const testProxyBtn = document.getElementById('test-proxy-btn');
@@ -43,6 +44,7 @@ const ttsIcon = document.getElementById('tts-icon');
 
 // State
 let ttsEnabled = true;
+let currentEgressIp = 'Unknown';
 let chatHistory = [];
 let relayNodes = [];
 let activeNodeId = 'default';
@@ -56,7 +58,27 @@ const SYSTEM_INSTRUCTION = "Anda adalah BAHASA SMART, asisten edukasi belajar ba
     "5. Selalu gunakan gaya bahasa yang ramah dan profesional.";
 
 // Initialize
+async function checkIP() {
+    try {
+        const res = await fetch('/api/check-ip');
+        const data = await res.json();
+        const oldIp = currentEgressIp;
+        currentEgressIp = data.ip;
+        if (currentIpDisplay) currentIpDisplay.innerText = currentEgressIp;
+
+        if (oldIp !== 'Unknown' && oldIp !== currentEgressIp) {
+            logDebug(`[System] IP Change Detected: ${oldIp} -> ${currentEgressIp}`);
+            showToast(`IP Berubah: ${currentEgressIp}`, 'info');
+        } else {
+            logDebug(`[System] Current Egress IP: ${currentEgressIp}`);
+        }
+    } catch (e) {
+        logDebug('[Error] Gagal mengecek IP');
+    }
+}
+
 async function init() {
+    await checkIP();
     try {
         const res = await fetch(API_STATUS_URL);
         const data = await res.json();
@@ -612,7 +634,13 @@ async function connectVPN() {
             inputArea.classList.remove('opacity-50', 'pointer-events-none');
             updateStatus('VPN Terhubung', 'bg-green-500');
 
-            appendMessage('System', `Terhubung ke jalur VPN ${activeNode.name}${locMsg}. Neural Engine siap.`);
+            // Log the IP change explicitly
+            const oldIp = currentEgressIp;
+            currentEgressIp = loc.ip;
+            if (currentIpDisplay) currentIpDisplay.innerText = currentEgressIp;
+            logDebug(`[VPN] IP Changed: ${oldIp} -> ${currentEgressIp}`);
+
+            appendMessage('System', `Terhubung ke jalur VPN ${activeNode.name}${locMsg}. IP Anda sekarang: ${currentEgressIp}`);
         } else {
             let errMsg = data.error;
             if (errMsg.includes('consider using fetch instead')) {

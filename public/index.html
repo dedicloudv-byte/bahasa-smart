@@ -57,6 +57,10 @@
                 <button id="settings-btn" class="w-9 h-9 flex items-center justify-center rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all text-gray-400 hover:text-white" title="Pengaturan API">
                     <i class="fas fa-cog"></i>
                 </button>
+                <div id="ip-badge" class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/5 bg-white/5 text-[10px] font-mono text-gray-500">
+                    <i class="fas fa-globe"></i>
+                    <span id="current-ip">Checking...</span>
+                </div>
                 <div id="status-badge" class="flex items-center gap-2 px-4 py-1.5 rounded-full border border-white/10 bg-white/5 text-xs font-medium transition-all">
                     <span class="w-2 h-2 rounded-full bg-green-500" id="status-dot"></span>
                     <span id="status-text">AI Aktif</span>

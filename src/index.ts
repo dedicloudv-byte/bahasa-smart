@@ -191,6 +191,18 @@ app.get('/api/proxy-config', async (c) => {
   return c.json(data)
 })
 
+app.get('/api/check-ip', async (c) => {
+  try {
+    const res = await fetch('https://www.cloudflare.com/cdn-cgi/trace');
+    const text = await res.text();
+    const ipLine = text.split('\n').find(l => l.startsWith('ip='));
+    const ip = ipLine ? ipLine.split('=')[1] : 'Unknown';
+    return c.json({ ip });
+  } catch (e) {
+    return c.json({ ip: 'Error' }, 500);
+  }
+})
+
 app.post('/api/proxy-test', async (c) => {
   const { proxyUrl, isVless } = await c.req.json<{ proxyUrl: string, isVless?: boolean }>();
   try {
